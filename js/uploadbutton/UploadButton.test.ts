@@ -1,8 +1,7 @@
 import { test, describe, expect, vi, afterEach, assert } from "vitest";
-import { spy, spyOn } from "tinyspy";
-import { cleanup, render, wait_for_event } from "@gradio/tootils";
+import { cleanup, render } from "@self/tootils";
 import event from "@testing-library/user-event";
-import { setupi18n } from "../app/src/i18n";
+import { setupi18n } from "../core/src/i18n";
 import UploadButton from "./Index.svelte";
 
 describe("UploadButton", () => {
@@ -18,7 +17,6 @@ describe("UploadButton", () => {
 
 			return {
 				...actual,
-				get_fetchable_url_or_file: () => "",
 				prepare_files: () => [],
 				// upload: vi.fn((f) => new Promise((res) => res([]))),
 				upload_files: vi.fn((f) => new Promise((res) => res({})))
@@ -51,7 +49,6 @@ describe("UploadButton", () => {
 
 			return {
 				...actual,
-				get_fetchable_url_or_file: () => "",
 				prepare_files: () => [],
 				// upload: vi.fn((f) => new Promise((res) => res([]))),
 				upload_files: vi.fn((f) => new Promise((res) => res({})))

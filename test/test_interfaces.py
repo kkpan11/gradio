@@ -1,9 +1,9 @@
 import io
 import sys
-import unittest.mock as mock
 from contextlib import contextmanager
 from functools import partial
 from string import capwords
+from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
@@ -39,13 +39,13 @@ class TestInterface:
 
     def test_close_all(self):
         interface = Interface(lambda input: None, "textbox", "label")
-        interface.close = mock.MagicMock()
+        interface.close = MagicMock()
         close_all()
         interface.close.assert_called()
 
     def test_no_input_or_output(self):
         with pytest.raises(TypeError):
-            Interface(lambda x: x, examples=1234)
+            Interface(lambda x: x, examples=1234)  # type: ignore
 
     def test_partial_functions(self):
         def greet(name, formatter):
@@ -69,7 +69,7 @@ class TestInterface:
 
         t = Textbox()
         i = Image()
-        Interface(test, [t, i], "text")
+        Interface(test, (t, i), "text")
         assert t.label == "parameter_name1"
         assert i.label == "parameter_name2"
 
@@ -90,7 +90,7 @@ class TestInterface:
         )
         assert dataset_check
 
-    @mock.patch("time.sleep")
+    @patch("time.sleep")
     def test_block_thread(self, mock_sleep):
         with pytest.raises(KeyboardInterrupt):
             with captured_output() as (out, _):
@@ -102,8 +102,8 @@ class TestInterface:
                     "Keyboard interruption in main thread... closing server." in output
                 )
 
-    @mock.patch("gradio.utils.colab_check")
-    @mock.patch("gradio.networking.setup_tunnel")
+    @patch("gradio.utils.colab_check")
+    @patch("gradio.networking.setup_tunnel")
     def test_launch_colab_share_error(self, mock_setup_tunnel, mock_colab_check):
         mock_setup_tunnel.side_effect = RuntimeError()
         mock_colab_check.return_value = True
@@ -121,7 +121,7 @@ class TestInterface:
         assert prediction_fn.__name__ in repr[0]
         assert len(repr[0]) == len(repr[1])
 
-    @mock.patch("webbrowser.open")
+    @patch("webbrowser.open")
     def test_interface_browser(self, mock_browser):
         interface = Interface(lambda x: x, "textbox", "label")
         interface.launch(inbrowser=True, prevent_thread_lock=True)
@@ -139,7 +139,7 @@ class TestInterface:
         assert interface.examples_handler.dataset.get_config()["samples_per_page"] == 2
         interface.close()
 
-    @mock.patch("IPython.display.display")
+    @patch("IPython.display.display")
     def test_inline_display(self, mock_display):
         interface = Interface(lambda x: x, "textbox", "label")
         interface.launch(inline=True, prevent_thread_lock=True)
@@ -159,14 +159,26 @@ class TestInterface:
     def test_get_api_info(self):
         io = Interface(lambda x: x, Image(type="filepath"), "textbox")
         api_info = io.get_api_info()
+        assert api_info
         assert len(api_info["named_endpoints"]) == 1
         assert len(api_info["unnamed_endpoints"]) == 0
 
     def test_api_name(self):
         io = Interface(lambda x: x, "textbox", "textbox", api_name="echo")
         assert next(
-            (d for d in io.config["dependencies"] if d["api_name"] == "echo"), None
+            (d for d in io.config["dependencies"] if d["api_name"] == "echo"),  # type: ignore
+            None,
         )
+
+    def test_show_progress(self):
+        io = Interface(
+            lambda x: x, "textbox", "textbox", api_name="echo", show_progress="hidden"
+        )
+        dependency = next(
+            (d for d in io.config["dependencies"] if d["api_name"] == "echo"),  # type: ignore
+            None,
+        )
+        assert dependency and dependency["show_progress"] == "hidden"
 
     def test_interface_in_blocks_does_not_error(self):
         with Blocks():
@@ -201,7 +213,8 @@ class TestTabbedInterface:
         tabbed_interface = TabbedInterface([interface3, interface4], ["tab1", "tab2"])
 
         assert assert_configs_are_equivalent_besides_ids(
-            demo.get_config_file(), tabbed_interface.get_config_file()
+            demo.get_config_file(),  # type: ignore
+            tabbed_interface.get_config_file(),  # type: ignore
         )
 
 
@@ -248,3 +261,31 @@ def test_interface_adds_stop_button(interface_type, live, use_generator):
         assert has_stop
     else:
         assert not has_stop
+
+
+def test_live_interface_sets_always_last():
+    iface = gradio.Interface(
+        fn=lambda s: s,
+        inputs=gradio.Textbox(lines=2, placeholder="Hello 👋", label="Input Sentence"),
+        outputs=gradio.Markdown(),
+        live=True,  # Set live to True for real-time feedback
+    )
+    config = iface.get_config_file()
+    assert "dependencies" in config
+    for dep in config["dependencies"]:
+        if dep["targets"][0][1] == "change":
+            assert dep["trigger_mode"] == "always_last"
+            return
+    raise AssertionError("No change dependency found")
+
+
+def test_tabbed_interface_predictions(connect):
+    hello_world = gradio.Interface(lambda name: "Hello " + name, "text", "text")
+    bye_world = gradio.Interface(lambda name: "Bye " + name, "text", "text")
+
+    demo = gradio.TabbedInterface(
+        [hello_world, bye_world], ["Hello World", "Bye World"]
+    )
+    with connect(demo) as client:
+        assert client.predict("Emily", api_name="/predict") == "Hello Emily"
+        assert client.predict("Hannah", api_name="/predict") == "Hello Hannah"

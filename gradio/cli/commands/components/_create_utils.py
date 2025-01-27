@@ -18,7 +18,7 @@ def _in_test_dir():
 
 
 default_demo_code = """
-example = {name}().example_inputs()
+example = {name}().example_value()
 
 demo = gr.Interface(
     lambda x:x,
@@ -29,7 +29,7 @@ demo = gr.Interface(
 """
 
 static_only_demo_code = """
-example = {name}().example_inputs()
+example = {name}().example_value()
 
 with gr.Blocks() as demo:
     with gr.Row():
@@ -87,7 +87,7 @@ OVERRIDES = {
     "Plot": ComponentFiles(template="Plot", demo_code=static_only_demo_code),
     "BarPlot": ComponentFiles(
         template="BarPlot",
-        python_file_name="bar_plot.py",
+        python_file_name="native_plot.py",
         js_dir="plot",
         demo_code=static_only_demo_code,
     ),
@@ -121,7 +121,7 @@ OVERRIDES = {
     ),
     "LinePlot": ComponentFiles(
         template="LinePlot",
-        python_file_name="line_plot.py",
+        python_file_name="native_plot.py",
         js_dir="plot",
         demo_code=static_only_demo_code,
     ),
@@ -139,7 +139,7 @@ OVERRIDES = {
     ),
     "ScatterPlot": ComponentFiles(
         template="ScatterPlot",
-        python_file_name="scatter_plot.py",
+        python_file_name="native_plot.py",
         js_dir="plot",
         demo_code=static_only_demo_code,
     ),
@@ -199,6 +199,21 @@ OVERRIDES = {
         """
         ),
     ),
+    "ImageEditor": ComponentFiles(
+        template="ImageEditor",
+        python_file_name="image_editor.py",
+        js_dir="imageeditor",
+    ),
+    "MultimodalTextbox": ComponentFiles(
+        template="MultimodalTextbox",
+        python_file_name="multimodal_textbox.py",
+        js_dir="multimodaltextbox",
+    ),
+    "DownloadButton": ComponentFiles(
+        template="DownloadButton",
+        python_file_name="download_button.py",
+        js_dir="downloadbutton",
+    ),
 }
 
 
@@ -246,14 +261,17 @@ def delete_contents(directory: str | Path) -> None:
 
 
 def _create_frontend(
-    name: str, component: ComponentFiles, directory: Path, package_name: str
+    name: str,  # noqa: ARG001
+    component: ComponentFiles,
+    directory: Path,
+    package_name: str,
 ):
     frontend = directory / "frontend"
     frontend.mkdir(exist_ok=True)
 
     p = Path(inspect.getfile(gradio)).parent
 
-    def ignore(s, names):
+    def ignore(_src, names):
         ignored = []
         for n in names:
             if (
@@ -277,11 +295,21 @@ def _create_frontend(
     source_package_json = _modify_js_deps(source_package_json, "dependencies", p)
     source_package_json = _modify_js_deps(source_package_json, "devDependencies", p)
     (frontend / "package.json").write_text(json.dumps(source_package_json, indent=2))
+    shutil.copy(
+        str(Path(__file__).parent / "files" / "gradio.config.js"),
+        frontend / "gradio.config.js",
+    )
 
 
 def _replace_old_class_name(old_class_name: str, new_class_name: str, content: str):
     pattern = rf"(?<=\b)(?<!\bimport\s)(?<!\.){re.escape(old_class_name)}(?=\b)"
     return re.sub(pattern, new_class_name, content)
+
+
+def _strip_document_lines(content: str):
+    return "\n".join(
+        [line for line in content.split("\n") if not line.startswith("@document(")]
+    )
 
 
 def _create_backend(
@@ -314,6 +342,10 @@ def _create_backend(
             "Please pass in a valid component name via the --template option. It must match the name of the python class."
         )
 
+    if not module:
+        raise ValueError("Module not found")
+
+    # These README contents are used to install the component but they are overwritten later
     readme_contents = textwrap.dedent(
         """
 # {package_name}
@@ -372,7 +404,6 @@ __all__ = ['{name}']
 
     p = Path(inspect.getfile(gradio)).parent
     python_file = backend / f"{name.lower()}.py"
-    assert module is not None
 
     shutil.copy(
         str(p / module / component.python_file_name),
@@ -385,11 +416,11 @@ __all__ = ['{name}']
         shutil.copy(str(source_pyi_file), str(pyi_file))
 
     content = python_file.read_text()
-    python_file.write_text(
-        _replace_old_class_name(correct_cased_template, name, content)
-    )
+    content = _replace_old_class_name(correct_cased_template, name, content)
+    content = _strip_document_lines(content)
+    python_file.write_text(content)
     if pyi_file.exists():
         pyi_content = pyi_file.read_text()
-        pyi_file.write_text(
-            _replace_old_class_name(correct_cased_template, name, pyi_content)
-        )
+        pyi_content = _replace_old_class_name(correct_cased_template, name, content)
+        pyi_content = _strip_document_lines(pyi_content)
+        pyi_file.write_text(pyi_content)

@@ -10,11 +10,11 @@
 	import VolumeLevels from "./VolumeLevels.svelte";
 	import VolumeControl from "./VolumeControl.svelte";
 
-	export let waveform: WaveSurfer;
+	export let waveform: WaveSurfer | undefined;
 	export let audio_duration: number;
 	export let i18n: I18nFormatter;
 	export let playing: boolean;
-	export let showRedo = false;
+	export let show_redo = false;
 	export let interactive = false;
 	export let handle_trim_audio: (start: number, end: number) => void;
 	export let mode = "";
@@ -30,7 +30,7 @@
 	let playbackSpeeds = [0.5, 1, 1.5, 2];
 	let playbackSpeed = playbackSpeeds[1];
 
-	let trimRegion: RegionsPlugin;
+	let trimRegion: RegionsPlugin | null = null;
 	let activeRegion: Region | null = null;
 
 	let leftRegionHandle: HTMLDivElement | null;
@@ -39,7 +39,10 @@
 
 	let currentVolume = 1;
 
-	$: trimRegion = waveform.registerPlugin(RegionsPlugin.create());
+	$: trimRegion =
+		container && waveform
+			? waveform.registerPlugin(RegionsPlugin.create())
+			: null;
 
 	$: trimRegion?.on("region-out", (region) => {
 		region.play();
@@ -56,7 +59,8 @@
 	});
 
 	const addTrimRegion = (): void => {
-		activeRegion = trimRegion.addRegion({
+		if (!trimRegion) return;
+		activeRegion = trimRegion?.addRegion({
 			start: audio_duration / 4,
 			end: audio_duration / 2,
 			...trim_region_settings
@@ -190,7 +194,7 @@
 						(playbackSpeeds.indexOf(playbackSpeed) + 1) % playbackSpeeds.length
 					];
 
-				waveform.setPlaybackRate(playbackSpeed);
+				waveform?.setPlaybackRate(playbackSpeed);
 			}}
 		>
 			<span>{playbackSpeed}x</span>
@@ -205,7 +209,7 @@
 				waveform_options.skip_length
 			)} seconds`}
 			on:click={() =>
-				waveform.skip(
+				waveform?.skip(
 					get_skip_rewind_amount(audio_duration, waveform_options.skip_length) *
 						-1
 				)}
@@ -214,7 +218,7 @@
 		</button>
 		<button
 			class="play-pause-button icon"
-			on:click={() => waveform.playPause()}
+			on:click={() => waveform?.playPause()}
 			aria-label={playing ? i18n("audio.pause") : i18n("audio.play")}
 		>
 			{#if playing}
@@ -230,7 +234,7 @@
 				waveform_options.skip_length
 			)} seconds"
 			on:click={() =>
-				waveform.skip(
+				waveform?.skip(
 					get_skip_rewind_amount(audio_duration, waveform_options.skip_length)
 				)}
 		>
@@ -240,7 +244,7 @@
 
 	<div class="settings-wrapper">
 		{#if editable && interactive}
-			{#if showRedo && mode === ""}
+			{#if show_redo && mode === ""}
 				<button
 					class="action icon"
 					aria-label="Reset audio"
@@ -276,6 +280,7 @@
 		display: flex;
 		justify-self: self-end;
 		align-items: center;
+		grid-area: editing;
 	}
 	.text-button {
 		border: 1px solid var(--neutral-400);
@@ -299,9 +304,31 @@
 	.controls {
 		display: grid;
 		grid-template-columns: 1fr 1fr 1fr;
+		grid-template-areas: "controls playback editing";
 		margin-top: 5px;
 		align-items: center;
 		position: relative;
+		flex-wrap: wrap;
+		justify-content: space-between;
+	}
+	.controls div {
+		margin: var(--size-1) 0;
+	}
+
+	@media (max-width: 600px) {
+		.controls {
+			grid-template-columns: 1fr 1fr;
+			grid-template-rows: auto auto;
+			grid-template-areas:
+				"playback playback"
+				"controls editing";
+		}
+	}
+
+	@media (max-width: 319px) {
+		.controls {
+			overflow-x: scroll;
+		}
 	}
 
 	.hidden {
@@ -313,25 +340,10 @@
 		justify-self: self-start;
 		align-items: center;
 		justify-content: space-between;
-	}
-
-	@media (max-width: 375px) {
-		.controls {
-			display: flex;
-			flex-wrap: wrap;
-		}
-
-		.controls * {
-			margin: var(--spacing-sm);
-		}
-
-		.controls .text-button {
-			margin-left: 0;
-		}
+		grid-area: controls;
 	}
 
 	.action {
-		width: var(--size-5);
 		width: var(--size-5);
 		color: var(--neutral-400);
 		margin-left: var(--spacing-md);
@@ -343,6 +355,13 @@
 	.play-pause-wrapper {
 		display: flex;
 		justify-self: center;
+		grid-area: playback;
+	}
+
+	@media (max-width: 600px) {
+		.play-pause-wrapper {
+			margin: var(--spacing-md);
+		}
 	}
 	.playback {
 		border: 1px solid var(--neutral-400);
@@ -370,7 +389,6 @@
 
 	.play-pause-button {
 		width: var(--size-8);
-		width: var(--size-8);
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -383,5 +401,6 @@
 		display: flex;
 		justify-content: center;
 		margin-right: var(--spacing-xl);
+		width: var(--size-5);
 	}
 </style>

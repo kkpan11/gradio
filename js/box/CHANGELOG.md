@@ -1,5 +1,228 @@
 # @gradio/box
 
+## 0.2.10
+
+### Dependency updates
+
+- @gradio/atoms@0.13.1
+
+## 0.2.9
+
+### Dependency updates
+
+- @gradio/atoms@0.13.0
+
+## 0.2.8
+
+### Dependency updates
+
+- @gradio/atoms@0.12.0
+
+## 0.2.7
+
+### Dependency updates
+
+- @gradio/atoms@0.11.2
+
+## 0.2.6
+
+### Dependency updates
+
+- @gradio/atoms@0.11.1
+
+## 0.2.5
+
+### Dependency updates
+
+- @gradio/atoms@0.11.0
+
+## 0.2.4
+
+### Dependency updates
+
+- @gradio/atoms@0.10.1
+
+## 0.2.3
+
+### Dependency updates
+
+- @gradio/atoms@0.10.0
+
+## 0.2.2
+
+### Dependency updates
+
+- @gradio/atoms@0.9.2
+
+## 0.2.1
+
+### Dependency updates
+
+- @gradio/atoms@0.9.1
+
+## 0.2.0
+
+### Features
+
+- [#8843](https://github.com/gradio-app/gradio/pull/8843) [`6f95286`](https://github.com/gradio-app/gradio/commit/6f95286337459efbccb95c9cfac63355669df9ee) - 5.0 merge take 2
+
+### Dependencies
+
+- @gradio/atoms@0.9.0
+
+## 0.2.0-beta.3
+
+### Dependency updates
+
+- @gradio/atoms@0.9.0-beta.5
+
+## 0.2.0-beta.2
+
+### Dependency updates
+
+- @gradio/atoms@0.9.0-beta.4
+
+## 0.2.0-beta.1
+
+### Dependency updates
+
+- @gradio/atoms@0.9.0-beta.3
+
+## 0.2.0-beta.0
+
+### Features
+
+- [#9326](https://github.com/gradio-app/gradio/pull/9326) [`7afb9a1`](https://github.com/gradio-app/gradio/commit/7afb9a14fa64310eb8b70f43a3bad373e46e36c1) - 5.0 merge take 2.  Thanks @pngwn!
+
+### Dependency updates
+
+- @gradio/atoms@0.9.0-beta.2
+
+## 0.1.25-beta.1
+
+### Dependency updates
+
+- @gradio/atoms@0.8.1-beta.1
+
+## 0.1.25
+
+### Fixes
+
+- [#9163](https://github.com/gradio-app/gradio/pull/9163) [`2b6cbf2`](https://github.com/gradio-app/gradio/commit/2b6cbf25908e42cf027324e54ef2cc0baad11a91) - fix exports and generate types.  Thanks @pngwn!
+
+### Dependency updates
+
+- @gradio/atoms@0.8.1-beta.0
+
+## 0.1.24
+
+### Features
+
+- [#9118](https://github.com/gradio-app/gradio/pull/9118) [`e1c404d`](https://github.com/gradio-app/gradio/commit/e1c404da1143fb52b659d03e028bdba1badf443d) - setup npm-previews of all packages.  Thanks @pngwn!
+
+### Dependency updates
+
+- @gradio/atoms@0.8.0
+
+## 0.1.23
+
+### Dependency updates
+
+- @gradio/atoms@0.7.9
+
+## 0.1.22
+
+### Dependency updates
+
+- @gradio/atoms@0.7.8
+
+## 0.1.21
+
+### Dependency updates
+
+- @gradio/atoms@0.7.7
+
+## 0.1.20
+
+### Dependency updates
+
+- @gradio/atoms@0.7.6
+
+## 0.1.19
+
+### Dependency updates
+
+- @gradio/atoms@0.7.5
+
+## 0.1.18
+
+### Dependency updates
+
+- @gradio/atoms@0.7.4
+
+## 0.1.17
+
+### Dependency updates
+
+- @gradio/atoms@0.7.3
+
+## 0.1.16
+
+### Dependency updates
+
+- @gradio/atoms@0.7.2
+
+## 0.1.15
+
+### Dependency updates
+
+- @gradio/atoms@0.7.1
+
+## 0.1.14
+
+### Dependency updates
+
+- @gradio/atoms@0.7.0
+
+## 0.1.13
+
+### Dependency updates
+
+- @gradio/atoms@0.6.2
+
+## 0.1.12
+
+### Dependency updates
+
+- @gradio/atoms@0.6.1
+
+## 0.1.11
+
+### Dependency updates
+
+- @gradio/atoms@0.6.0
+
+## 0.1.10
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @gradio/atoms@0.5.3
+
+## 0.1.9
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @gradio/atoms@0.5.2
+
+## 0.1.8
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @gradio/atoms@0.5.1
+
 ## 0.1.7
 
 ### Patch Changes

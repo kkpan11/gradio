@@ -1,68 +1,79 @@
-<script>
-	import { Meta, Template, Story } from "@storybook/addon-svelte-csf";
+<script context="module">
+	import { Template, Story } from "@storybook/addon-svelte-csf";
 	import Gallery from "./Index.svelte";
-</script>
+	import { allModes } from "../storybook/modes";
+	import { within } from "@testing-library/dom";
+	import { userEvent } from "@storybook/test";
 
-<Meta
-	title="Components/Gallery"
-	component={Gallery}
-	argTypes={{
-		label: {
-			control: "text",
-			description: "The gallery label",
-			name: "label",
-			value: "Gradio Button"
+	export const meta = {
+		title: "Components/Gallery",
+		component: Gallery,
+		argTypes: {
+			label: {
+				control: "text",
+				description: "The gallery label",
+				name: "label",
+				value: "Gradio Button"
+			},
+			show_label: {
+				options: [true, false],
+				description: "Whether to show the label",
+				control: { type: "boolean" },
+				defaultValue: true
+			},
+			columns: {
+				options: [1, 2, 3, 4],
+				description: "The number of columns to show in grid",
+				control: { type: "select" },
+				defaultValue: 2
+			},
+			rows: {
+				options: [1, 2, 3, 4],
+				description: "The number of rows to show in grid",
+				control: { type: "select" },
+				defaultValue: 2
+			},
+			height: {
+				options: ["auto", 500, 600],
+				description: "The height of the grid",
+				control: { type: "select" },
+				defaultValue: "auto"
+			},
+			preview: {
+				options: [true, false],
+				description: "Whether to start the gallery in preview mode",
+				control: { type: "boolean" },
+				defaultValue: true
+			},
+			allow_preview: {
+				options: [true, false],
+				description: "Whether to allow a preview mode in the gallery",
+				control: { type: "boolean" },
+				defaultValue: true
+			},
+			object_fit: {
+				options: ["contain", "cover", "fill", "none", "scale-down"],
+				description: "How to display each indivial image in the grid",
+				control: { type: "select" },
+				defaultValue: "contain"
+			},
+			show_share_button: {
+				options: [true, false],
+				description: "Whether to show the share button in the gallery",
+				control: { type: "boolean" },
+				defaultValue: false
+			}
 		},
-		show_label: {
-			options: [true, false],
-			description: "Whether to show the label",
-			control: { type: "boolean" },
-			defaultValue: true
-		},
-		columns: {
-			options: [1, 2, 3, 4],
-			description: "The number of columns to show in grid",
-			control: { type: "select" },
-			defaultValue: 2
-		},
-		rows: {
-			options: [1, 2, 3, 4],
-			description: "The number of rows to show in grid",
-			control: { type: "select" },
-			defaultValue: 2
-		},
-		height: {
-			options: ["auto", 500, 600],
-			description: "The height of the grid",
-			control: { type: "select" },
-			defaultValue: "auto"
-		},
-		preview: {
-			options: [true, false],
-			description: "Whether to start the gallery in preview mode",
-			control: { type: "boolean" },
-			defaultValue: true
-		},
-		allow_preview: {
-			options: [true, false],
-			description: "Whether to allow a preview mode in the gallery",
-			control: { type: "boolean" },
-			defaultValue: true
-		},
-		object_fit: {
-			options: ["contain", "cover", "fill", "none", "scale-down"],
-			description: "How to display each indivial image in the grid",
-			control: { type: "select" },
-			defaultValue: "contain"
-		},
-		show_share_button: {
-			options: [true, false],
-			description: "Whether to show the share button in the gallery",
-			control: { type: "boolean" },
-			defaultValue: false
+		parameters: {
+			chromatic: {
+				modes: {
+					desktop: allModes["desktop"],
+					mobile: allModes["mobile"]
+				}
+			}
 		}
-	}}
-/>
+	};
+</script>
 
 <Template let:args>
 	<Gallery
@@ -74,6 +85,14 @@
 					orig_name: "cheetah_running.avif"
 				},
 				caption: "A fast cheetah"
+			},
+			{
+				video: {
+					path: "https://gradio-builds.s3.amazonaws.com/demo-files/world.mp4",
+					url: "https://gradio-builds.s3.amazonaws.com/demo-files/world.mp4",
+					orig_name: "world.mp4"
+				},
+				caption: "The world"
 			},
 			{
 				image: {
@@ -125,6 +144,16 @@
 <Story
 	name="Gallery with label"
 	args={{ label: "My Cheetah Gallery", show_label: true }}
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const image = canvas.getByLabelText("Thumbnail 1 of 8");
+		await userEvent.click(image);
+		const expand_btn = canvas.getByRole("button", {
+			name: "View in full screen"
+		});
+		await userEvent.click(expand_btn);
+	}}
 />
 <Story
 	name="Gallery without label"

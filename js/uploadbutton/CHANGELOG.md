@@ -1,10 +1,498 @@
 # @gradio/uploadbutton
 
+## 0.8.2
+
+### Dependency updates
+
+- @gradio/upload@0.14.6
+- @gradio/button@0.4.2
+
+## 0.8.1
+
+### Dependency updates
+
+- @gradio/client@1.10.0
+- @gradio/upload@0.14.5
+- @gradio/button@0.4.1
+
+## 0.8.0
+
+### Features
+
+- [#10191](https://github.com/gradio-app/gradio/pull/10191) [`5ce2832`](https://github.com/gradio-app/gradio/commit/5ce28324971e974ae24dc9a229b2160793140fb2) - Support saving chat history in `gr.ChatInterface`.  Thanks @abidlabs!
+
+### Dependency updates
+
+- @gradio/utils@0.10.0
+- @gradio/upload@0.14.4
+- @gradio/client@1.9.0
+- @gradio/button@0.4.0
+
+## 0.7.9
+
+### Dependency updates
+
+- @gradio/upload@0.14.3
+- @gradio/button@0.3.9
+
+## 0.7.8
+
+### Dependency updates
+
+- @gradio/utils@0.9.0
+- @gradio/button@0.3.8
+- @gradio/upload@0.14.2
+
+## 0.7.7
+
+### Dependency updates
+
+- @gradio/client@1.8.0
+- @gradio/utils@0.8.0
+- @gradio/button@0.3.7
+- @gradio/upload@0.14.1
+
+## 0.7.6
+
+### Dependency updates
+
+- @gradio/button@0.3.6
+- @gradio/upload@0.14.0
+
+## 0.7.5
+
+### Dependency updates
+
+- @gradio/client@1.7.1
+- @gradio/upload@0.13.5
+- @gradio/button@0.3.5
+
+## 0.7.4
+
+### Dependency updates
+
+- @gradio/button@0.3.4
+- @gradio/upload@0.13.4
+
+## 0.7.3
+
+### Dependency updates
+
+- @gradio/upload@0.13.3
+- @gradio/button@0.3.3
+
+## 0.7.2
+
+### Dependency updates
+
+- @gradio/client@1.7.0
+- @gradio/upload@0.13.2
+- @gradio/button@0.3.2
+
+## 0.7.1
+
+### Dependency updates
+
+- @gradio/upload@0.13.1
+- @gradio/button@0.3.1
+
+## 0.7.0
+
+### Features
+
+- [#8843](https://github.com/gradio-app/gradio/pull/8843) [`6f95286`](https://github.com/gradio-app/gradio/commit/6f95286337459efbccb95c9cfac63355669df9ee) - Ssr part 2
+
+### Dependencies
+
+- @gradio/button@0.3.0
+- @gradio/client@1.6.0
+- @gradio/upload@0.13.0
+- @gradio/utils@0.7.0
+
+## 0.7.0-beta.7
+
+### Dependency updates
+
+- @gradio/upload@0.13.0-beta.7
+- @gradio/button@0.3.0-beta.7
+
+## 0.7.0-beta.6
+
+### Dependency updates
+
+- @gradio/client@1.6.0-beta.4
+- @gradio/upload@0.13.0-beta.6
+- @gradio/button@0.3.0-beta.6
+
+## 0.7.0-beta.5
+
+### Dependency updates
+
+- @gradio/upload@0.13.0-beta.5
+- @gradio/button@0.3.0-beta.5
+
+## 0.7.0-beta.4
+
+### Dependency updates
+
+- @gradio/upload@0.13.0-beta.4
+- @gradio/button@0.3.0-beta.4
+
+## 0.7.0-beta.3
+
+### Dependency updates
+
+- @gradio/upload@0.13.0-beta.3
+- @gradio/client@1.6.0-beta.3
+- @gradio/button@0.3.0-beta.3
+
+## 0.7.0-beta.2
+
+### Features
+
+- [#9339](https://github.com/gradio-app/gradio/pull/9339) [`4c8c6f2`](https://github.com/gradio-app/gradio/commit/4c8c6f2fe603081941c5fdc43f48a0632b9f31ad) - Ssr part 2.  Thanks @pngwn!
+
+### Dependency updates
+
+- @gradio/upload@0.13.0-beta.2
+- @gradio/client@1.6.0-beta.2
+- @gradio/utils@0.7.0-beta.2
+- @gradio/button@0.3.0-beta.2
+
+## 0.6.19-beta.1
+
+### Dependency updates
+
+- @gradio/utils@0.7.0-beta.1
+- @gradio/client@1.6.0-beta.1
+- @gradio/upload@0.12.4-beta.1
+- @gradio/button@0.3.0-beta.1
+
+## 0.6.19
+
+### Fixes
+
+- [#9163](https://github.com/gradio-app/gradio/pull/9163) [`2b6cbf2`](https://github.com/gradio-app/gradio/commit/2b6cbf25908e42cf027324e54ef2cc0baad11a91) - fix exports and generate types.  Thanks @pngwn!
+
+### Dependency updates
+
+- @gradio/utils@0.6.1
+- @gradio/client@1.5.2
+- @gradio/upload@0.12.4
+- @gradio/button@0.2.51
+
+## 0.6.18
+
+### Features
+
+- [#9118](https://github.com/gradio-app/gradio/pull/9118) [`e1c404d`](https://github.com/gradio-app/gradio/commit/e1c404da1143fb52b659d03e028bdba1badf443d) - setup npm-previews of all packages.  Thanks @pngwn!
+
+### Dependency updates
+
+- @gradio/utils@0.6.0
+- @gradio/upload@0.12.3
+- @gradio/button@0.2.50
+- @gradio/client@1.5.1
+
+## 0.6.17
+
+### Dependency updates
+
+- @gradio/client@1.5.0
+- @gradio/upload@0.12.2
+- @gradio/button@0.2.49
+
+## 0.6.16
+
+### Dependency updates
+
+- @gradio/utils@0.5.2
+- @gradio/upload@0.12.1
+- @gradio/button@0.2.48
+
+## 0.6.15
+
+### Dependency updates
+
+- @gradio/client@1.4.0
+- @gradio/upload@0.12.0
+- @gradio/button@0.2.47
+
+## 0.6.14
+
+### Dependency updates
+
+- @gradio/utils@0.5.1
+- @gradio/client@1.3.0
+- @gradio/upload@0.11.5
+- @gradio/button@0.2.46
+
+## 0.6.13
+
+### Dependency updates
+
+- @gradio/upload@0.11.4
+- @gradio/client@1.2.1
+- @gradio/button@0.2.45
+
+## 0.6.12
+
+### Dependency updates
+
+- @gradio/utils@0.5.0
+- @gradio/client@1.2.0
+- @gradio/button@0.2.44
+- @gradio/upload@0.11.3
+
+## 0.6.11
+
+### Dependency updates
+
+- @gradio/client@1.1.1
+- @gradio/upload@0.11.2
+- @gradio/button@0.2.43
+
+## 0.6.10
+
+### Dependency updates
+
+- @gradio/upload@0.11.1
+- @gradio/client@1.1.0
+- @gradio/button@0.2.42
+
+## 0.6.9
+
+### Dependency updates
+
+- @gradio/client@1.0.0
+- @gradio/upload@0.11.0
+- @gradio/button@0.2.41
+
+## 0.6.8
+
+### Dependency updates
+
+- @gradio/upload@0.10.7
+- @gradio/client@0.20.1
+- @gradio/button@0.2.40
+
+## 0.6.7
+
+### Dependency updates
+
+- @gradio/client@0.20.0
+- @gradio/button@0.2.39
+- @gradio/upload@0.10.6
+
+## 0.6.6
+
+### Dependency updates
+
+- @gradio/utils@0.4.2
+- @gradio/upload@0.10.5
+- @gradio/client@0.19.4
+- @gradio/button@0.2.38
+
+## 0.6.5
+
+### Dependency updates
+
+- @gradio/client@0.19.3
+- @gradio/button@0.2.37
+- @gradio/upload@0.10.4
+
+## 0.6.4
+
+### Dependency updates
+
+- @gradio/upload@0.10.3
+- @gradio/client@0.19.2
+- @gradio/button@0.2.36
+
+## 0.6.3
+
+### Dependency updates
+
+- @gradio/client@0.19.1
+- @gradio/button@0.2.35
+- @gradio/upload@0.10.2
+
+## 0.6.2
+
+### Dependency updates
+
+- @gradio/client@0.19.0
+- @gradio/upload@0.10.1
+- @gradio/button@0.2.34
+
+## 0.6.1
+
+### Fixes
+
+- [#8179](https://github.com/gradio-app/gradio/pull/8179) [`6a218b4`](https://github.com/gradio-app/gradio/commit/6a218b4148095aaa0c58d8c20973ba01c8764fc2) - rework upload to be a class method + pass client into each component.  Thanks @pngwn!
+
+### Dependency updates
+
+- @gradio/client@0.18.0
+- @gradio/upload@0.10.0
+- @gradio/utils@0.4.1
+- @gradio/button@0.2.33
+
+## 0.6.0
+
+### Highlights
+
+#### Setting File Upload Limits ([#7909](https://github.com/gradio-app/gradio/pull/7909) [`2afca65`](https://github.com/gradio-app/gradio/commit/2afca6541912b37dc84f447c7ad4af21607d7c72))
+
+We have added a `max_file_size` size parameter to `launch()` that limits to size of files uploaded to the server. This limit applies to each individual file. This parameter can be specified as a string or an integer (corresponding to the size in bytes).
+
+The following code snippet sets a max file size of 5 megabytes.
+
+```python
+import gradio as gr
+
+demo = gr.Interface(lambda x: x, "image", "image")
+
+demo.launch(max_file_size="5mb")
+# or
+demo.launch(max_file_size=5 * gr.FileSize.MB)
+```
+
+![max_file_size_upload](https://github.com/gradio-app/gradio/assets/41651716/7547330c-a082-4901-a291-3f150a197e45)
+
+
+#### Error states can now be cleared
+
+When a component encounters an error, the error state shown in the UI can now be cleared by clicking on the `x` icon in the top right of the component. This applies to all types of errors, whether it's raised in the UI or the server.
+
+![error_modal_calculator](https://github.com/gradio-app/gradio/assets/41651716/16cb071c-accd-45a6-9c18-0dea27d4bd98)
+
+ Thanks @freddyaboulton!
+
+### Fixes
+
+- [#8066](https://github.com/gradio-app/gradio/pull/8066) [`624f9b9`](https://github.com/gradio-app/gradio/commit/624f9b9477f74a581a6c14119234f9efdfcda398) - make gradio dev tools a local dependency rather than bundling.  Thanks @pngwn!
+
+### Dependency updates
+
+- @gradio/client@0.17.0
+- @gradio/button@0.2.32
+- @gradio/upload@0.9.0
+- @gradio/utils@0.4.0
+
+## 0.5.8
+
+### Dependency updates
+
+- @gradio/utils@0.3.2
+- @gradio/client@0.16.0
+- @gradio/upload@0.8.5
+- @gradio/button@0.2.31
+
+## 0.5.7
+
+### Dependency updates
+
+- @gradio/utils@0.3.1
+- @gradio/upload@0.8.4
+- @gradio/client@0.15.1
+- @gradio/button@0.2.30
+
+## 0.5.6
+
+### Dependency updates
+
+- @gradio/button@0.2.29
+- @gradio/upload@0.8.3
+- @gradio/client@0.15.0
+
+## 0.5.5
+
+### Dependency updates
+
+- @gradio/button@0.2.28
+- @gradio/upload@0.8.2
+
+## 0.5.4
+
+### Dependency updates
+
+- @gradio/upload@0.8.1
+- @gradio/button@0.2.27
+
+## 0.5.3
+
+### Dependency updates
+
+- @gradio/client@0.14.0
+- @gradio/upload@0.8.0
+- @gradio/button@0.2.26
+
+## 0.5.2
+
+### Dependency updates
+
+- @gradio/button@0.2.25
+- @gradio/upload@0.7.7
+- @gradio/client@0.13.0
+
+## 0.5.1
+
+### Patch Changes
+
+- Updated dependencies [[`8181695`](https://github.com/gradio-app/gradio/commit/8181695e70187e8bc2bf7518697098c8d1b9843d)]:
+  - @gradio/upload@0.7.6
+  - @gradio/button@0.2.24
+
+## 0.5.0
+
+### Features
+
+- [#7528](https://github.com/gradio-app/gradio/pull/7528) [`eda33b3`](https://github.com/gradio-app/gradio/commit/eda33b3763897a542acf298e523fa493dc655aee) - Refactors `get_fetchable_url_or_file()` to remove it from the frontend. Thanks [@abidlabs](https://github.com/abidlabs)!
+- [#7518](https://github.com/gradio-app/gradio/pull/7518) [`bd2c695`](https://github.com/gradio-app/gradio/commit/bd2c69532801f9a0626cd1192de158bde6068b9a) - Adds a `gr.DownloadButton` component. Thanks [@abidlabs](https://github.com/abidlabs)!
+
+## 0.4.7
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @gradio/upload@0.7.4
+  - @gradio/button@0.2.22
+
+## 0.4.6
+
+### Patch Changes
+
+- Updated dependencies [[`065c5b1`](https://github.com/gradio-app/gradio/commit/065c5b163c4badb9d9cbd06d627fb4ba086003e7), [`32b317f`](https://github.com/gradio-app/gradio/commit/32b317f24e3d43f26684bb9f3964f31efd0ea556)]:
+  - @gradio/utils@0.3.0
+  - @gradio/client@0.12.1
+  - @gradio/button@0.2.21
+  - @gradio/upload@0.7.3
+
+## 0.4.5
+
+### Patch Changes
+
+- Updated dependencies [[`49d9c48`](https://github.com/gradio-app/gradio/commit/49d9c48537aa706bf72628e3640389470138bdc6)]:
+  - @gradio/client@0.12.0
+  - @gradio/button@0.2.20
+  - @gradio/upload@0.7.2
+
+## 0.4.4
+
+### Patch Changes
+
+- Updated dependencies [[`572e360`](https://github.com/gradio-app/gradio/commit/572e360fff4a03c335b86e1a7517a44cb6af2bcd), [`68a54a7`](https://github.com/gradio-app/gradio/commit/68a54a7a310d8d7072fdae930bf1cfdf12c45a7f), [`fdd1521`](https://github.com/gradio-app/gradio/commit/fdd15213c24b9cbc58bbc1b6beb4af7c18f48557), [`c3e61e4`](https://github.com/gradio-app/gradio/commit/c3e61e4f70696a71aede67b65d28447eb67daf16)]:
+  - @gradio/upload@0.7.1
+  - @gradio/client@0.11.0
+  - @gradio/utils@0.2.2
+  - @gradio/button@0.2.19
+
 ## 0.4.3
 
 ### Fixes
 
-- [#7126](https://github.com/gradio-app/gradio/pull/7126) [`5727b92`](https://github.com/gradio-app/gradio/commit/5727b92abc8a00a675bfc0a921b38de771af947b) - Allow buttons to take null value.  Thanks [@abidlabs](https://github.com/abidlabs)!
+- [#7126](https://github.com/gradio-app/gradio/pull/7126) [`5727b92`](https://github.com/gradio-app/gradio/commit/5727b92abc8a00a675bfc0a921b38de771af947b) - Allow buttons to take null value. Thanks [@abidlabs](https://github.com/abidlabs)!
 
 ## 0.4.2
 

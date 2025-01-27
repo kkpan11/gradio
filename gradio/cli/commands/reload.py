@@ -5,6 +5,7 @@ Contains the functions that run when `gradio` is called from the command line. S
 $ gradio app.py, to run app.py in reload mode where any changes in the app.py file or Gradio library reloads the demo.
 $ gradio app.py my_demo, to use variable names other than "demo"
 """
+
 from __future__ import annotations
 
 import inspect
@@ -15,7 +16,7 @@ import subprocess
 import sys
 import threading
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 import typer
 from rich import print
@@ -36,7 +37,7 @@ def _setup_config(
     app_text = original_path.read_text(encoding=encoding)
 
     patterns = [
-        f"with gr\\.Blocks\\(.*\\) as {demo_name}",
+        rf"with (?:gr\.)?Blocks\(.*\) as {demo_name}",
         f"{demo_name} = gr\\.Blocks",
         f"{demo_name} = gr\\.Interface",
         f"{demo_name} = gr\\.ChatInterface",
@@ -97,7 +98,7 @@ def _setup_config(
 
     print(message + "\n")
 
-    # guaranty access to the module of an app
+    # guarantee access to the module of an app
     sys.path.insert(0, os.getcwd())
     return module_name, abs_original_path, [str(s) for s in watching_dirs], demo_name
 
@@ -105,24 +106,31 @@ def _setup_config(
 def main(
     demo_path: Path,
     demo_name: str = "demo",
-    watch_dirs: Optional[List[str]] = None,
+    watch_dirs: Optional[list[str]] = None,
     encoding: str = "utf-8",
 ):
     # default execution pattern to start the server and watch changes
-    module_name, path, watch_dirs, demo_name = _setup_config(
+    module_name, path, watch_sources, demo_name = _setup_config(
         demo_path, demo_name, watch_dirs, encoding
     )
-    # extra_args = args[1:] if len(args) == 1 or args[1].startswith("--") else args[2:]
+
+    # Pass the following data as environment variables
+    # so that we can set up reload mode correctly in the networking.py module
     popen = subprocess.Popen(
         [sys.executable, "-u", path],
         env=dict(
             os.environ,
-            GRADIO_WATCH_DIRS=",".join(watch_dirs),
+            GRADIO_WATCH_DIRS=",".join(watch_sources),
             GRADIO_WATCH_MODULE_NAME=module_name,
             GRADIO_WATCH_DEMO_NAME=demo_name,
+            GRADIO_WATCH_DEMO_PATH=str(path),
         ),
     )
-    popen.wait()
+    if popen.poll() is None:
+        try:
+            popen.wait()
+        except (KeyboardInterrupt, OSError):
+            pass
 
 
 if __name__ == "__main__":

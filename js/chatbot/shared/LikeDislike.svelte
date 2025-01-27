@@ -1,46 +1,96 @@
 <script lang="ts">
-	import { Like } from "@gradio/icons";
-	import { Dislike } from "@gradio/icons";
+	import { IconButton } from "@gradio/atoms";
+	import ThumbDownActive from "./ThumbDownActive.svelte";
+	import ThumbDownDefault from "./ThumbDownDefault.svelte";
+	import ThumbUpActive from "./ThumbUpActive.svelte";
+	import ThumbUpDefault from "./ThumbUpDefault.svelte";
+	import Flag from "./Flag.svelte";
+	import FlagActive from "./FlagActive.svelte";
 
 	export let handle_action: (selected: string | null) => void;
+	export let feedback_options: string[];
+	export let selected: string | null = null;
+	$: extra_feedback = feedback_options.filter(
+		(option) => option !== "Like" && option !== "Dislike"
+	);
 
-	let selected: "like" | "dislike" | null = null;
+	function toggleSelection(newSelection: string): void {
+		selected = selected === newSelection ? null : newSelection;
+		handle_action(selected);
+	}
 </script>
 
-<button
-	on:click={() => {
-		selected = "like";
-		handle_action(selected);
-	}}
-	aria-label={selected === "like" ? "clicked like" : "like"}
->
-	<Like selected={selected === "like"} />
-</button>
+{#if feedback_options.includes("Like") || feedback_options.includes("Dislike")}
+	{#if feedback_options.includes("Dislike")}
+		<IconButton
+			Icon={selected === "Dislike" ? ThumbDownActive : ThumbDownDefault}
+			label={selected === "Dislike" ? "clicked dislike" : "dislike"}
+			color={selected === "Dislike"
+				? "var(--color-accent)"
+				: "var(--block-label-text-color)"}
+			on:click={() => toggleSelection("Dislike")}
+		/>
+	{/if}
+	{#if feedback_options.includes("Like")}
+		<IconButton
+			Icon={selected === "Like" ? ThumbUpActive : ThumbUpDefault}
+			label={selected === "Like" ? "clicked like" : "like"}
+			color={selected === "Like"
+				? "var(--color-accent)"
+				: "var(--block-label-text-color)"}
+			on:click={() => toggleSelection("Like")}
+		/>
+	{/if}
+{/if}
 
-<button
-	on:click={() => {
-		selected = "dislike";
-		handle_action(selected);
-	}}
-	aria-label={selected === "dislike" ? "clicked dislike" : "dislike"}
->
-	<Dislike selected={selected === "dislike"} />
-</button>
+{#if extra_feedback.length > 0}
+	<div class="extra-feedback no-border">
+		<IconButton
+			Icon={selected && extra_feedback.includes(selected) ? FlagActive : Flag}
+			label="Feedback"
+			color={selected && extra_feedback.includes(selected)
+				? "var(--color-accent)"
+				: "var(--block-label-text-color)"}
+		/>
+		<div class="extra-feedback-options">
+			{#each extra_feedback as option}
+				<button
+					class="extra-feedback-option"
+					style:font-weight={selected === option ? "bold" : "normal"}
+					on:click={() => {
+						toggleSelection(option);
+						handle_action(selected ? selected : null);
+					}}>{option}</button
+				>
+			{/each}
+		</div>
+	</div>
+{/if}
 
 <style>
-	button {
+	.extra-feedback {
+		display: flex;
+		align-items: center;
 		position: relative;
-		top: 0;
-		right: 0;
-		cursor: pointer;
-		color: var(--body-text-color-subdued);
-		width: 17px;
-		height: 17px;
-		margin-right: 5px;
 	}
-
-	button:hover,
-	button:focus {
-		color: var(--body-text-color);
+	.extra-feedback-options {
+		display: none;
+		position: absolute;
+		padding: var(--spacing-md) 0;
+		flex-direction: column;
+		gap: var(--spacing-sm);
+		top: 100%;
+	}
+	.extra-feedback:hover .extra-feedback-options {
+		display: flex;
+	}
+	.extra-feedback-option {
+		border: 1px solid var(--border-color-primary);
+		border-radius: var(--radius-sm);
+		color: var(--block-label-text-color);
+		background-color: var(--block-background-fill);
+		font-size: var(--text-xs);
+		padding: var(--spacing-xxs) var(--spacing-sm);
+		width: max-content;
 	}
 </style>

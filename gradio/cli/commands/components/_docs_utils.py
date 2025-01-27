@@ -71,7 +71,7 @@ def get_param_name(param):
 
 def format_none(value):
     """Formats None and NonType values."""
-    if value is None or value is type(None) or value == "None" or value == "NoneType":
+    if value is None or value is type(None) or value in ("None", "NoneType"):
         return "None"
     return value
 
@@ -145,36 +145,19 @@ def get_type_arguments(type_hint) -> tuple:
 
 def get_container_name(arg):
     """Gets a human readable name for a type."""
-
-    # This is a bit of a hack to get the generic type for python 3.8
-    typing_genericalias = getattr(typing, "_GenericAlias", None)
-    types_genericalias = getattr(types, "GenericAlias", None)
-    types_uniontype = getattr(types, "UnionType", None)
-    if types_genericalias is None:
-        raise ValueError(
-            """Unable to find GenericAlias type. This is likely because you are using an older version of python. Please upgrade to python 3.10 or higher."""
-        )
-
-    generic_type_tuple = (
-        (types_genericalias,)
-        if typing_genericalias is None
-        else (types_genericalias, typing_genericalias)
-    )
-
     if inspect.isclass(arg):
         return arg.__name__
-    if isinstance(arg, (generic_type_tuple)):
+    if isinstance(arg, types.GenericAlias):
         return arg.__origin__.__name__
-    elif types_uniontype and isinstance(arg, types_uniontype):
+    elif isinstance(arg, types.UnionType):
         return "Union"
     elif getattr(arg, "__origin__", None) is typing.Literal:
         return "Literal"
-
     else:
         return str(arg)
 
 
-def format_type(_type: list[typing.Any], current=None):
+def format_type(_type: list[typing.Any]):
     """Pretty formats a possibly nested type hint."""
 
     s = []
@@ -187,18 +170,18 @@ def format_type(_type: list[typing.Any], current=None):
         elif isinstance(t, list):
             if len(t) == 0:
                 continue
-            s.append(f"{format_type(t, _current)}")
+            s.append(f"{format_type(t)}")
         else:
             s.append(t)
     if len(s) == 0:
         return _current
-    elif _current == "Literal" or _current == "Union":
+    elif _current in ("Literal", "Union"):
         return "| ".join(s)
     else:
         return f"{_current}[{','.join(s)}]"
 
 
-def get_type_hints(param, module, ignore=None):
+def get_type_hints(param, module):
     """Gets the type hints for a parameter."""
 
     def extract_args(
@@ -268,7 +251,7 @@ def get_type_hints(param, module, ignore=None):
 
                 if len(new_args) > 0:
                     arg_names.append(new_args)
-        else:
+        else:  # noqa: PLR5501
             if append:
                 arg_names.append(get_param_name(arg))
         return arg_names
@@ -313,11 +296,7 @@ def extract_docstrings(module):
             for member_name, member in inspect.getmembers(obj):
                 if inspect.ismethod(member) or inspect.isfunction(member):
                     # we are are only interested in these methods
-                    if (
-                        member_name != "__init__"
-                        and member_name != "preprocess"
-                        and member_name != "postprocess"
-                    ):
+                    if member_name not in ("__init__", "preprocess", "postprocess"):
                         continue
 
                     docs[name]["members"][member_name] = {}
@@ -385,11 +364,11 @@ def extract_docstrings(module):
                         ] = docstring
 
                         # We just want to normalise the arg name to 'value' for the preprocess and postprocess methods
-                        if member_name == "postprocess" or member_name == "preprocess":
-                            docs[name]["members"][member_name][
-                                "value"
-                            ] = find_first_non_return_key(
-                                docs[name]["members"][member_name]
+                        if member_name in ("postprocess", "preprocess"):
+                            docs[name]["members"][member_name]["value"] = (
+                                find_first_non_return_key(
+                                    docs[name]["members"][member_name]
+                                )
                             )
                             additional_refs = get_deep(
                                 docs, ["__meta__", "user_fn_refs", name]
@@ -468,7 +447,7 @@ def make_js(
                 }})
             }}
         }})
-        
+
         Object.entries(refs).forEach(([key, refs]) => {{
             if (refs.length > 0) {{
                 const el = document.querySelector(`.${{key}}`);
@@ -575,8 +554,8 @@ def make_user_fn(
 
 The impact on the users predict function varies depending on whether the component is used as an input or output for an event (or both).
 
-- When used as an Input, the component only impacts the input signature of the user function. 
-- When used as an output, the component only impacts the return signature of the user function. 
+- When used as an Input, the component only impacts the input signature of the user function.
+- When used as an output, the component only impacts the return signature of the user function.
 
 The code snippet below is accurate in cases where the component is used as both an input and an output.
 
@@ -634,8 +613,8 @@ def make_user_fn_markdown(
 
 The impact on the users predict function varies depending on whether the component is used as an input or output for an event (or both).
 
-- When used as an Input, the component only impacts the input signature of the user function. 
-- When used as an output, the component only impacts the return signature of the user function. 
+- When used as an Input, the component only impacts the input signature of the user function.
+- When used as an output, the component only impacts the return signature of the user function.
 
 The code snippet below is accurate in cases where the component is used as both an input and an output.
 
@@ -835,12 +814,13 @@ def make_space(
             """The demo must be launched using `if __name__ == '__main__'`, otherwise the docs page will not function correctly.
 
 To fix this error, launch the demo inside of an if statement like this:
-    
+
 if __name__ == '__main__':
     demo.launch()
 
 To ignore this error pass `--suppress-demo-check` to the docs command."""
         )
+    demo = demo.replace('"""', '\\"\\"\\"')
 
     source = """
 import gradio as gr
@@ -852,7 +832,7 @@ import os
 
     source += f"""
 _docs = {docs}
-    
+
 abs_path = os.path.join(os.path.dirname(__file__), "css.css")
 
 with gr.Blocks(
@@ -914,8 +894,8 @@ def make_markdown(
 {description}
 
 ## Installation
-    
-```bash 
+
+```bash
 pip install {name}
 ```
 

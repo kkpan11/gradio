@@ -14,15 +14,19 @@ export interface CropCommand extends Command {
 		width: number,
 		height: number,
 		previous_crop: [number, number, number, number],
+		preview?: boolean,
 		set_previous?: boolean
 	) => void;
 	stop: () => number;
-	continue: (crop_size: [number, number, number, number]) => void;
+	continue: (
+		crop_size: [number, number, number, number],
+		preview?: boolean
+	) => void;
 }
 
 export function crop_canvas(
 	renderer: IRenderer,
-	mask_container: Container,
+	background_container: Container,
 	crop: Writable<[number, number, number, number]>,
 	current_opacity = 0
 ): CropCommand {
@@ -74,6 +78,7 @@ export function crop_canvas(
 			_width: number,
 			_height: number,
 			_previous_crop: [number, number, number, number],
+			_preview = true,
 			set_previous = true
 		) => {
 			clean = false;
@@ -82,18 +87,18 @@ export function crop_canvas(
 				height: _height
 			});
 
-			crop_mask(_width, _height, _previous_crop, true);
+			crop_mask(_width, _height, _previous_crop, _preview);
 			sprite = new Sprite(text);
-			mask_container.mask = sprite;
+			background_container.mask = sprite;
 			width = _width;
 			height = _height;
 			if (set_previous)
 				previous_crop = JSON.parse(JSON.stringify(_previous_crop));
 		},
-		continue: (crop_size: [number, number, number, number]) => {
+		continue: (crop_size: [number, number, number, number], preview = true) => {
 			final_crop = JSON.parse(JSON.stringify(crop_size));
 			if (spring_value === 0.2) {
-				crop_mask(width, height, final_crop, true);
+				crop_mask(width, height, final_crop, preview);
 			} else {
 				alpha_spring.set(0.2);
 			}
@@ -126,16 +131,14 @@ export function crop_canvas(
 				clean = true;
 			} else {
 				if (!stopped) {
-					alpha_spring.set(0);
+					alpha_spring.set(0, { hard: true });
 				}
-
 				crop.set([
 					final_crop[0] / width,
 					final_crop[1] / height,
 					final_crop[2] / width,
 					final_crop[3] / height
 				]);
-
 				clean = true;
 			}
 		}

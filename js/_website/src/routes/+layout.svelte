@@ -16,6 +16,8 @@
 	import Header from "$lib/components/Header.svelte";
 	import Footer from "$lib/components/Footer.svelte";
 
+	import WHEEL from "$lib/json/wheel.json";
+
 	import { media_query } from "../lib/utils";
 	store = media_query();
 
@@ -28,20 +30,26 @@
 	import { afterNavigate } from "$app/navigation";
 
 	afterNavigate(() => {
-		for (const node of document.querySelectorAll(".codeblock")) {
-			let children = Array.from(node.querySelectorAll("pre, a"));
-			let textContent = node.textContent;
-			node.innerHTML = "";
+		if (window.innerWidth > 768) {
+			for (const node of document.querySelectorAll(".codeblock")) {
+				let children = Array.from(node.querySelectorAll("pre, a"));
+				let textContent = node.textContent;
+				node.innerHTML = "";
 
-			new CopyButton({
-				target: node,
-				props: {
-					content: textContent ?? ""
+				new CopyButton({
+					target: node,
+					props: {
+						content: textContent ?? ""
+					}
+				});
+				for (const child of children) {
+					node.appendChild(child);
 				}
-			});
-			for (const child of children) {
-				node.appendChild(child);
 			}
+			const script = document.createElement("script");
+			script.src = WHEEL.gradio_lite_url + "/dist/lite.js";
+			script.type = "module";
+			document.head.appendChild(script);
 		}
 	});
 </script>
@@ -51,11 +59,6 @@
 		href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:ital,wght@0,200;0,300;0,400;0,600;0,700;0,900;1,200;1,300;1,400;1,600;1,700;1,900&display=swap"
 		rel="stylesheet"
 	/>
-	<script
-		type="module"
-		crossorigin="true"
-		src="https://cdn.jsdelivr.net/npm/@gradio/lite/dist/lite.js"
-	></script>
 
 	<script
 		async
@@ -78,12 +81,3 @@
 <slot />
 
 <Footer />
-
-<style>
-	:global(
-			body:has(.playground) .main-header,
-			body:has(.playground) .main-footer
-		) {
-		display: none;
-	}
-</style>

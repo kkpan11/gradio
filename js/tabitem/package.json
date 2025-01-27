@@ -1,6 +1,6 @@
 {
 	"name": "@gradio/tabitem",
-	"version": "0.2.1",
+	"version": "0.4.1",
 	"description": "Gradio UI packages",
 	"type": "module",
 	"author": "",
@@ -8,12 +8,27 @@
 	"private": false,
 	"main_changeset": true,
 	"exports": {
-		".": "./Index.svelte",
+		".": {
+			"gradio": "./Index.svelte",
+			"svelte": "./dist/Index.svelte",
+			"types": "./dist/Index.svelte.d.ts"
+		},
 		"./package.json": "./package.json"
 	},
 	"dependencies": {
 		"@gradio/column": "workspace:^",
 		"@gradio/tabs": "workspace:^",
 		"@gradio/utils": "workspace:^"
+	},
+	"devDependencies": {
+		"@gradio/preview": "workspace:^"
+	},
+	"peerDependencies": {
+		"svelte": "^4.0.0"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/gradio-app/gradio.git",
+		"directory": "js/tabitem"
 	}
 }

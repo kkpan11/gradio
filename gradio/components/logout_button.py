@@ -1,14 +1,17 @@
 """Predefined button to sign out from Hugging Face in a Gradio Space."""
+
 from __future__ import annotations
 
 import warnings
-from typing import Literal
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Literal
 
-from gradio_client.documentation import document, set_documentation_group
+from gradio_client.documentation import document
 
-from gradio.components import Button
+from gradio.components import Button, Component
 
-set_documentation_group("component")
+if TYPE_CHECKING:
+    from gradio.components import Timer
 
 
 @document()
@@ -26,18 +29,20 @@ class LogoutButton(Button):
         self,
         value: str = "Logout",
         *,
-        every: float | None = None,
+        every: Timer | float | None = None,
+        inputs: Component | Sequence[Component] | set[Component] | None = None,
         variant: Literal["primary", "secondary", "stop"] = "secondary",
-        size: Literal["sm", "lg"] | None = None,
+        size: Literal["sm", "lg"] = "lg",
         icon: str
         | None = "https://huggingface.co/front/assets/huggingface_logo-noborder.svg",
         # Link to logout page (which will delete the session cookie and redirect to landing page).
-        link: str | None = "/logout",
+        link: str | None = "/gradio_api/logout",
         visible: bool = True,
         interactive: bool = True,
         elem_id: str | None = None,
         elem_classes: list[str] | str | None = None,
         render: bool = True,
+        key: int | str | None = None,
         scale: int | None = 0,
         min_width: int | None = None,
     ):
@@ -47,6 +52,7 @@ class LogoutButton(Button):
         super().__init__(
             value,
             every=every,
+            inputs=inputs,
             variant=variant,
             size=size,
             icon=icon,
@@ -56,6 +62,7 @@ class LogoutButton(Button):
             elem_id=elem_id,
             elem_classes=elem_classes,
             render=render,
+            key=key,
             scale=scale,
             min_width=min_width,
         )

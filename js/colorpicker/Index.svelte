@@ -11,7 +11,6 @@
 	import { Block } from "@gradio/atoms";
 	import { StatusTracker } from "@gradio/statustracker";
 	import type { LoadingStatus } from "@gradio/statustracker";
-	import exp from "constants";
 
 	export let label = "ColorPicker";
 	export let info: string | undefined = undefined;
@@ -25,14 +24,17 @@
 	export let scale: number | null = null;
 	export let min_width: number | undefined = undefined;
 	export let loading_status: LoadingStatus;
+	export let root: string;
 	export let gradio: Gradio<{
 		change: never;
 		input: never;
 		submit: never;
 		blur: never;
 		focus: never;
+		clear_status: LoadingStatus;
 	}>;
 	export let interactive: boolean;
+	export let disabled = false;
 </script>
 
 <Block {visible} {elem_id} {elem_classes} {container} {scale} {min_width}>
@@ -40,15 +42,17 @@
 		autoscroll={gradio.autoscroll}
 		i18n={gradio.i18n}
 		{...loading_status}
+		on:clear_status={() => gradio.dispatch("clear_status", loading_status)}
 	/>
 
 	<Colorpicker
 		bind:value
 		bind:value_is_output
+		{root}
 		{label}
 		{info}
 		{show_label}
-		disabled={!interactive}
+		disabled={!interactive || disabled}
 		on:change={() => gradio.dispatch("change")}
 		on:input={() => gradio.dispatch("input")}
 		on:submit={() => gradio.dispatch("submit")}

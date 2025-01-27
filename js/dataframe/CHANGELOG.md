@@ -1,5 +1,691 @@
 # @gradio/dataframe
 
+## 0.13.0
+
+### Features
+
+- [#10377](https://github.com/gradio-app/gradio/pull/10377) [`feb1e81`](https://github.com/gradio-app/gradio/commit/feb1e81ecabf34fd3f9ec228dcf3bdaa4b0bd75e) - Add toolbar with fullscreen button to `gr.Dataframe`.  Thanks @hannahblair!
+- [#10376](https://github.com/gradio-app/gradio/pull/10376) [`2b7ba48`](https://github.com/gradio-app/gradio/commit/2b7ba4801398b6dd6b72496ea50245a0cd6852d6) - Add `show_row_numbers` param to gr.Dataframe.  Thanks @hannahblair!
+- [#10410](https://github.com/gradio-app/gradio/pull/10410) [`48809c7`](https://github.com/gradio-app/gradio/commit/48809c722bcbb3aaed72edfdb6c59de5413fdbc4) - Fix bug where dataframe `value` prop was not updating when an input value was changed manually.  Thanks @abidlabs!
+
+### Fixes
+
+- [#10365](https://github.com/gradio-app/gradio/pull/10365) [`40e0c48`](https://github.com/gradio-app/gradio/commit/40e0c4832060cef457406896b2ad94639888897a) - Ensure clicking on a cell once enables editing mode.  Thanks @hannahblair!
+- [#10348](https://github.com/gradio-app/gradio/pull/10348) [`62cd4ef`](https://github.com/gradio-app/gradio/commit/62cd4ef302cd7529d1f8842b416f9d8fcf6b5750) - Handle `row_count=0` in gr.Dataframe.  Thanks @hannahblair!
+- [#10403](https://github.com/gradio-app/gradio/pull/10403) [`3219382`](https://github.com/gradio-app/gradio/commit/3219382eeea0a0047c74e0cdd2bf333e69f8f806) - Fix event triggers and recent regressions related to `gr.DataFrame`.  Thanks @abidlabs!
+- [#10360](https://github.com/gradio-app/gradio/pull/10360) [`31cccc3`](https://github.com/gradio-app/gradio/commit/31cccc3e79a3d1b4a840610d9becb235f8829b13) - Fix logic for detecting changes in `gr.Dataframe` table value.  Thanks @abidlabs!
+
+### Dependency updates
+
+- @gradio/upload@0.14.6
+- @gradio/button@0.4.2
+- @gradio/statustracker@0.10.2
+
+## 0.12.7
+
+### Dependency updates
+
+- @gradio/atoms@0.13.1
+- @gradio/statustracker@0.10.1
+- @gradio/client@1.10.0
+- @gradio/upload@0.14.5
+- @gradio/button@0.4.1
+
+## 0.12.6
+
+### Dependency updates
+
+- @gradio/atoms@0.13.0
+- @gradio/utils@0.10.0
+- @gradio/markdown-code@0.3.0
+- @gradio/upload@0.14.4
+- @gradio/client@1.9.0
+- @gradio/statustracker@0.10.0
+- @gradio/button@0.4.0
+
+## 0.12.5
+
+### Dependency updates
+
+- @gradio/statustracker@0.9.7
+- @gradio/upload@0.14.3
+- @gradio/button@0.3.9
+- @gradio/atoms@0.12.0
+
+## 0.12.4
+
+### Fixes
+
+- [#9945](https://github.com/gradio-app/gradio/pull/9945) [`e9f0d03`](https://github.com/gradio-app/gradio/commit/e9f0d0315d27325f55a8b1c5c763d07e3d78fd06) - Ensure Enter is correctly handled in Safari and Firefox.  Thanks @hannahblair!
+
+### Dependency updates
+
+- @gradio/atoms@0.11.2
+- @gradio/utils@0.9.0
+- @gradio/button@0.3.8
+- @gradio/statustracker@0.9.6
+- @gradio/upload@0.14.2
+
+## 0.12.3
+
+### Fixes
+
+- [#9949](https://github.com/gradio-app/gradio/pull/9949) [`cfb62bf`](https://github.com/gradio-app/gradio/commit/cfb62bfdb52d88295f27287f788fca977e37ae6d) - Allow dataframe column content to wrap.  Thanks @hannahblair!
+
+### Dependency updates
+
+- @gradio/atoms@0.11.1
+- @gradio/client@1.8.0
+- @gradio/utils@0.8.0
+- @gradio/button@0.3.7
+- @gradio/upload@0.14.1
+- @gradio/statustracker@0.9.5
+
+## 0.12.2
+
+### Fixes
+
+- [#9892](https://github.com/gradio-app/gradio/pull/9892) [`7d77024`](https://github.com/gradio-app/gradio/commit/7d77024cb8f9cfd39a6468de9534e58dcfa69f49) - Fix dataframe height increasing on scroll.  Thanks @abidlabs!
+
+### Dependency updates
+
+- @gradio/statustracker@0.9.4
+- @gradio/button@0.3.6
+- @gradio/atoms@0.11.0
+- @gradio/upload@0.14.0
+
+## 0.12.1
+
+### Features
+
+- [#9649](https://github.com/gradio-app/gradio/pull/9649) [`b1b81c9`](https://github.com/gradio-app/gradio/commit/b1b81c9e1c10c2c14a5cb0661d2503259ece1a1b) - Hide option to add row/col when count is fixed in dataframe.  Thanks @hannahblair!
+
+### Dependency updates
+
+- @gradio/markdown-code@0.2.1
+- @gradio/statustracker@0.9.3
+- @gradio/atoms@0.10.1
+- @gradio/client@1.7.1
+- @gradio/upload@0.13.5
+- @gradio/button@0.3.5
+
+## 0.12.0
+
+### Features
+
+- [#9756](https://github.com/gradio-app/gradio/pull/9756) [`92f337c`](https://github.com/gradio-app/gradio/commit/92f337cc85d545060ea343f1cee85c22b85f6444) - Fix website build issue.  Thanks @aliabd!
+
+### Fixes
+
+- [#9654](https://github.com/gradio-app/gradio/pull/9654) [`cd7dab7`](https://github.com/gradio-app/gradio/commit/cd7dab7ba5c81983f133dfa9e90ac6f92ac4fa1f) - Improve select event behaviour in gr.Dataframe.  Thanks @hannahblair!
+
+### Dependency updates
+
+- @gradio/button@0.3.4
+- @gradio/statustracker@0.9.2
+- @gradio/atoms@0.10.0
+- @gradio/markdown-code@0.2.0
+- @gradio/upload@0.13.4
+
+## 0.11.4
+
+### Dependency updates
+
+- @gradio/markdown@0.10.3
+- @gradio/statustracker@0.9.1
+- @gradio/upload@0.13.3
+- @gradio/button@0.3.3
+- @gradio/atoms@0.9.2
+
+## 0.11.3
+
+### Fixes
+
+- [#9709](https://github.com/gradio-app/gradio/pull/9709) [`31418ef`](https://github.com/gradio-app/gradio/commit/31418ef388a2dc524069ee230c2735a4beaf55f1) - fix table type check.  Thanks @hannahblair!
+
+### Dependency updates
+
+- @gradio/markdown@0.10.2
+- @gradio/atoms@0.9.1
+- @gradio/statustracker@0.9.0
+- @gradio/client@1.7.0
+- @gradio/upload@0.13.2
+- @gradio/button@0.3.2
+
+## 0.11.2
+
+### Dependency updates
+
+- @gradio/upload@0.13.1
+- @gradio/button@0.3.1
+
+## 0.11.1
+
+### Features
+
+- [#9614](https://github.com/gradio-app/gradio/pull/9614) [`5d98550`](https://github.com/gradio-app/gradio/commit/5d985509b4b71aa4aa6b28acc38fe83c278dbbfa) - Fix `retry` and `undo` reactivity in gr.Chatbot.  Thanks @hannahblair!
+
+### Dependency updates
+
+- @gradio/statustracker@0.8.1
+- @gradio/markdown@0.10.1
+
+## 0.11.0
+
+### Features
+
+- [#8843](https://github.com/gradio-app/gradio/pull/8843) [`6f95286`](https://github.com/gradio-app/gradio/commit/6f95286337459efbccb95c9cfac63355669df9ee) - UI theme fixes
+- [#8843](https://github.com/gradio-app/gradio/pull/8843) [`6f95286`](https://github.com/gradio-app/gradio/commit/6f95286337459efbccb95c9cfac63355669df9ee) - Tweak gr.Dataframe menu UX
+- [#8843](https://github.com/gradio-app/gradio/pull/8843) [`6f95286`](https://github.com/gradio-app/gradio/commit/6f95286337459efbccb95c9cfac63355669df9ee) - Update gr.Dataframe UI with action popover
+- [#8843](https://github.com/gradio-app/gradio/pull/8843) [`6f95286`](https://github.com/gradio-app/gradio/commit/6f95286337459efbccb95c9cfac63355669df9ee) - Fix. Triggered dataframe change event for header change
+- [#8843](https://github.com/gradio-app/gradio/pull/8843) [`6f95286`](https://github.com/gradio-app/gradio/commit/6f95286337459efbccb95c9cfac63355669df9ee) - Standardize `height` across components and add `max_height` and `min_height` parameters where appropriate
+- [#8843](https://github.com/gradio-app/gradio/pull/8843) [`6f95286`](https://github.com/gradio-app/gradio/commit/6f95286337459efbccb95c9cfac63355669df9ee) - Ssr part 2
+
+### Dependencies
+
+- @gradio/atoms@0.9.0
+- @gradio/button@0.3.0
+- @gradio/client@1.6.0
+- @gradio/markdown@0.10.0
+- @gradio/statustracker@0.8.0
+- @gradio/upload@0.13.0
+- @gradio/utils@0.7.0
+
+## 0.11.0-beta.8
+
+### Features
+
+- [#9601](https://github.com/gradio-app/gradio/pull/9601) [`c078892`](https://github.com/gradio-app/gradio/commit/c07889223cb64661b17560b707b977248809470a) - Tweak gr.Dataframe menu UX.  Thanks @hannahblair!
+- [#9575](https://github.com/gradio-app/gradio/pull/9575) [`4ec2feb`](https://github.com/gradio-app/gradio/commit/4ec2feb04e452d2c77482c09543c59948567be67) - Update gr.Dataframe UI with action popover.  Thanks @hannahblair!
+
+### Dependency updates
+
+- @gradio/upload@0.13.0-beta.7
+- @gradio/statustracker@0.8.0-beta.5
+- @gradio/atoms@0.9.0-beta.5
+- @gradio/button@0.3.0-beta.7
+- @gradio/markdown@0.10.0-beta.5
+
+## 0.11.0-beta.7
+
+### Dependency updates
+
+- @gradio/statustracker@0.8.0-beta.4
+- @gradio/atoms@0.9.0-beta.4
+- @gradio/client@1.6.0-beta.4
+- @gradio/upload@0.13.0-beta.6
+- @gradio/markdown@0.10.0-beta.4
+- @gradio/button@0.3.0-beta.6
+
+## 0.11.0-beta.6
+
+### Features
+
+- [#9496](https://github.com/gradio-app/gradio/pull/9496) [`1647ebd`](https://github.com/gradio-app/gradio/commit/1647ebddc3e2ed6fc143a62629409e32afcc5801) - UI theme fixes.  Thanks @aliabid94!
+
+### Dependency updates
+
+- @gradio/upload@0.13.0-beta.5
+- @gradio/statustracker@0.8.0-beta.3
+- @gradio/atoms@0.9.0-beta.3
+- @gradio/button@0.3.0-beta.5
+- @gradio/markdown@0.10.0-beta.3
+
+## 0.11.0-beta.5
+
+### Dependency updates
+
+- @gradio/statustracker@0.8.0-beta.2
+- @gradio/upload@0.13.0-beta.4
+- @gradio/button@0.3.0-beta.4
+- @gradio/markdown@0.10.0-beta.2
+
+## 0.11.0-beta.4
+
+### Features
+
+- [#9469](https://github.com/gradio-app/gradio/pull/9469) [`f7c3396`](https://github.com/gradio-app/gradio/commit/f7c3396f55a5b8364d3880a29d766bd092d7f840) - Fix. Triggered dataframe change event for header change.  Thanks @Joodith!
+
+## 0.11.0-beta.3
+
+### Dependency updates
+
+- @gradio/upload@0.13.0-beta.3
+- @gradio/client@1.6.0-beta.3
+- @gradio/button@0.3.0-beta.3
+
+## 0.11.0-beta.2
+
+### Features
+
+- [#9313](https://github.com/gradio-app/gradio/pull/9313) [`1fef9d9`](https://github.com/gradio-app/gradio/commit/1fef9d9a26f0ebce4de18c486702661f6539b1c6) - Standardize `height` across components and add `max_height` and `min_height` parameters where appropriate.  Thanks @abidlabs!
+- [#9339](https://github.com/gradio-app/gradio/pull/9339) [`4c8c6f2`](https://github.com/gradio-app/gradio/commit/4c8c6f2fe603081941c5fdc43f48a0632b9f31ad) - Ssr part 2.  Thanks @pngwn!
+
+### Dependency updates
+
+- @gradio/atoms@0.9.0-beta.2
+- @gradio/upload@0.13.0-beta.2
+- @gradio/markdown@0.10.0-beta.2
+- @gradio/client@1.6.0-beta.2
+- @gradio/statustracker@0.8.0-beta.2
+- @gradio/utils@0.7.0-beta.2
+- @gradio/button@0.3.0-beta.2
+
+## 0.10.1-beta.1
+
+### Features
+
+- [#9187](https://github.com/gradio-app/gradio/pull/9187) [`5bf00b7`](https://github.com/gradio-app/gradio/commit/5bf00b7524ebf399b48719120a49d15bb21bd65c) - make all component SSR compatible.  Thanks @pngwn!
+
+### Dependency updates
+
+- @gradio/atoms@0.8.1-beta.1
+- @gradio/statustracker@0.8.0-beta.1
+- @gradio/utils@0.7.0-beta.1
+- @gradio/client@1.6.0-beta.1
+- @gradio/upload@0.12.4-beta.1
+- @gradio/markdown@0.9.4-beta.1
+- @gradio/button@0.3.0-beta.1
+
+## 0.10.1-beta.0
+
+### Fixes
+
+- [#9163](https://github.com/gradio-app/gradio/pull/9163) [`2b6cbf2`](https://github.com/gradio-app/gradio/commit/2b6cbf25908e42cf027324e54ef2cc0baad11a91) - fix exports and generate types.  Thanks @pngwn!
+
+### Dependency updates
+
+- @gradio/utils@0.6.1
+- @gradio/statustracker@0.7.6
+- @gradio/atoms@0.8.1
+- @gradio/client@1.5.2
+- @gradio/upload@0.12.4
+- @gradio/button@0.2.51
+- @gradio/markdown@0.9.4
+
+## 0.10.0
+
+### Features
+
+- [#9128](https://github.com/gradio-app/gradio/pull/9128) [`747013b`](https://github.com/gradio-app/gradio/commit/747013bbacebae6bfdda554b45e541e80b2894e0) - Allow accessing the entire row of selected values in `gr.DataFrame`.  Thanks @abidlabs!
+- [#9118](https://github.com/gradio-app/gradio/pull/9118) [`e1c404d`](https://github.com/gradio-app/gradio/commit/e1c404da1143fb52b659d03e028bdba1badf443d) - setup npm-previews of all packages.  Thanks @pngwn!
+- [#9102](https://github.com/gradio-app/gradio/pull/9102) [`efdc323`](https://github.com/gradio-app/gradio/commit/efdc3231a7bde38cfe45d10086d0d36a24c1b9b4) - Initial SSR refactor.  Thanks @pngwn!
+
+### Dependency updates
+
+- @gradio/utils@0.6.0
+- @gradio/upload@0.12.3
+- @gradio/atoms@0.8.0
+- @gradio/button@0.2.50
+- @gradio/client@1.5.1
+- @gradio/markdown@0.9.3
+- @gradio/statustracker@0.7.5
+
+## 0.9.2
+
+### Dependency updates
+
+- @gradio/atoms@0.7.9
+- @gradio/statustracker@0.7.4
+- @gradio/client@1.5.0
+- @gradio/upload@0.12.2
+- @gradio/markdown@0.9.2
+- @gradio/button@0.2.49
+
+## 0.9.1
+
+### Dependency updates
+
+- @gradio/atoms@0.7.8
+- @gradio/utils@0.5.2
+- @gradio/statustracker@0.7.3
+- @gradio/upload@0.12.1
+- @gradio/markdown@0.9.1
+- @gradio/button@0.2.48
+
+## 0.9.0
+
+### Features
+
+- [#8745](https://github.com/gradio-app/gradio/pull/8745) [`4030f28`](https://github.com/gradio-app/gradio/commit/4030f28af6ae9f3eb94bb4e9cae83fb7016cdaad) - Allows updating the dataset of a `gr.Examples`.  Thanks @abidlabs!
+
+### Dependency updates
+
+- @gradio/markdown@0.9.0
+- @gradio/client@1.4.0
+- @gradio/statustracker@0.7.2
+- @gradio/upload@0.12.0
+- @gradio/atoms@0.7.7
+- @gradio/button@0.2.47
+
+## 0.8.13
+
+### Fixes
+
+- [#8763](https://github.com/gradio-app/gradio/pull/8763) [`c1ecfde`](https://github.com/gradio-app/gradio/commit/c1ecfde50e55902140aafc3551968e26c1bb4cd0) - 8394 df hidden items.  Thanks @pngwn!
+
+### Dependency updates
+
+- @gradio/atoms@0.7.6
+- @gradio/utils@0.5.1
+- @gradio/statustracker@0.7.1
+- @gradio/client@1.3.0
+- @gradio/markdown@0.8.1
+- @gradio/upload@0.11.5
+- @gradio/button@0.2.46
+
+## 0.8.12
+
+### Dependency updates
+
+- @gradio/upload@0.11.4
+- @gradio/client@1.2.1
+- @gradio/button@0.2.45
+
+## 0.8.11
+
+### Dependency updates
+
+- @gradio/atoms@0.7.5
+- @gradio/utils@0.5.0
+- @gradio/client@1.2.0
+- @gradio/statustracker@0.7.0
+- @gradio/markdown@0.8.0
+- @gradio/button@0.2.44
+- @gradio/upload@0.11.3
+
+## 0.8.10
+
+### Dependency updates
+
+- @gradio/client@1.1.1
+- @gradio/upload@0.11.2
+- @gradio/button@0.2.43
+
+## 0.8.9
+
+### Dependency updates
+
+- @gradio/upload@0.11.1
+- @gradio/client@1.1.0
+- @gradio/button@0.2.42
+
+## 0.8.8
+
+### Dependency updates
+
+- @gradio/statustracker@0.6.0
+- @gradio/client@1.0.0
+- @gradio/upload@0.11.0
+- @gradio/button@0.2.41
+- @gradio/markdown@0.7.6
+
+## 0.8.7
+
+### Dependency updates
+
+- @gradio/upload@0.10.7
+- @gradio/client@0.20.1
+- @gradio/button@0.2.40
+
+## 0.8.6
+
+### Dependency updates
+
+- @gradio/client@0.20.0
+- @gradio/statustracker@0.6.0
+- @gradio/button@0.2.39
+- @gradio/upload@0.10.6
+- @gradio/markdown@0.7.6
+
+## 0.8.5
+
+### Dependency updates
+
+- @gradio/utils@0.4.2
+- @gradio/atoms@0.7.4
+- @gradio/statustracker@0.5.5
+- @gradio/upload@0.10.5
+- @gradio/markdown@0.7.5
+- @gradio/client@0.19.4
+- @gradio/button@0.2.38
+
+## 0.8.4
+
+### Dependency updates
+
+- @gradio/client@0.19.3
+- @gradio/statustracker@0.5.4
+- @gradio/button@0.2.37
+- @gradio/upload@0.10.4
+- @gradio/markdown@0.7.4
+
+## 0.8.3
+
+### Dependency updates
+
+- @gradio/upload@0.10.3
+- @gradio/client@0.19.2
+- @gradio/button@0.2.36
+
+## 0.8.2
+
+### Dependency updates
+
+- @gradio/statustracker@0.5.3
+- @gradio/client@0.19.1
+- @gradio/markdown@0.7.3
+- @gradio/button@0.2.35
+- @gradio/upload@0.10.2
+
+## 0.8.1
+
+### Fixes
+
+- [#8252](https://github.com/gradio-app/gradio/pull/8252) [`22df61a`](https://github.com/gradio-app/gradio/commit/22df61a26adf8023f6dd49c051979990e8d3879a) - Client node fix.  Thanks @pngwn!
+
+### Dependency updates
+
+- @gradio/atoms@0.7.3
+- @gradio/statustracker@0.5.2
+- @gradio/markdown@0.7.2
+- @gradio/client@0.19.0
+- @gradio/upload@0.10.1
+- @gradio/button@0.2.34
+
+## 0.8.0
+
+### Features
+
+- [#8121](https://github.com/gradio-app/gradio/pull/8121) [`f5b710c`](https://github.com/gradio-app/gradio/commit/f5b710c919b0ce604ea955f0d5f4faa91095ca4a) - chore(deps): update dependency eslint to v9.  Thanks @renovate!
+- [#8209](https://github.com/gradio-app/gradio/pull/8209) [`b9afe93`](https://github.com/gradio-app/gradio/commit/b9afe93915401df5bd6737c89395c2477acfa585) - Rename `eventSource_Factory` and `fetch_implementation`.  Thanks @hannahblair!
+
+### Fixes
+
+- [#8179](https://github.com/gradio-app/gradio/pull/8179) [`6a218b4`](https://github.com/gradio-app/gradio/commit/6a218b4148095aaa0c58d8c20973ba01c8764fc2) - rework upload to be a class method + pass client into each component.  Thanks @pngwn!
+
+### Dependency updates
+
+- @gradio/atoms@0.7.2
+- @gradio/client@0.18.0
+- @gradio/upload@0.10.0
+- @gradio/utils@0.4.1
+- @gradio/statustracker@0.5.1
+- @gradio/button@0.2.33
+- @gradio/markdown@0.7.1
+
+## 0.7.0
+
+### Highlights
+
+#### Setting File Upload Limits ([#7909](https://github.com/gradio-app/gradio/pull/7909) [`2afca65`](https://github.com/gradio-app/gradio/commit/2afca6541912b37dc84f447c7ad4af21607d7c72))
+
+We have added a `max_file_size` size parameter to `launch()` that limits to size of files uploaded to the server. This limit applies to each individual file. This parameter can be specified as a string or an integer (corresponding to the size in bytes).
+
+The following code snippet sets a max file size of 5 megabytes.
+
+```python
+import gradio as gr
+
+demo = gr.Interface(lambda x: x, "image", "image")
+
+demo.launch(max_file_size="5mb")
+# or
+demo.launch(max_file_size=5 * gr.FileSize.MB)
+```
+
+![max_file_size_upload](https://github.com/gradio-app/gradio/assets/41651716/7547330c-a082-4901-a291-3f150a197e45)
+
+
+#### Error states can now be cleared
+
+When a component encounters an error, the error state shown in the UI can now be cleared by clicking on the `x` icon in the top right of the component. This applies to all types of errors, whether it's raised in the UI or the server.
+
+![error_modal_calculator](https://github.com/gradio-app/gradio/assets/41651716/16cb071c-accd-45a6-9c18-0dea27d4bd98)
+
+ Thanks @freddyaboulton!
+
+### Fixes
+
+- [#8066](https://github.com/gradio-app/gradio/pull/8066) [`624f9b9`](https://github.com/gradio-app/gradio/commit/624f9b9477f74a581a6c14119234f9efdfcda398) - make gradio dev tools a local dependency rather than bundling.  Thanks @pngwn!
+
+### Dependency updates
+
+- @gradio/atoms@0.7.1
+- @gradio/button@0.2.32
+- @gradio/markdown@0.7.0
+- @gradio/statustracker@0.5.0
+- @gradio/upload@0.9.0
+- @gradio/utils@0.4.0
+
+## 0.6.13
+
+### Dependency updates
+
+- @gradio/utils@0.3.2
+- @gradio/statustracker@0.4.12
+- @gradio/upload@0.8.5
+- @gradio/atoms@0.7.0
+- @gradio/markdown@0.6.10
+- @gradio/button@0.2.31
+
+## 0.6.12
+
+### Dependency updates
+
+- @gradio/utils@0.3.1
+- @gradio/atoms@0.6.2
+- @gradio/statustracker@0.4.11
+- @gradio/upload@0.8.4
+- @gradio/markdown@0.6.9
+- @gradio/button@0.2.30
+
+## 0.6.11
+
+### Dependency updates
+
+- @gradio/button@0.2.29
+- @gradio/upload@0.8.3
+
+## 0.6.10
+
+### Dependency updates
+
+- @gradio/button@0.2.28
+- @gradio/atoms@0.6.1
+- @gradio/statustracker@0.4.10
+- @gradio/upload@0.8.2
+- @gradio/markdown@0.6.8
+
+## 0.6.9
+
+### Dependency updates
+
+- @gradio/upload@0.8.1
+- @gradio/button@0.2.27
+- @gradio/statustracker@0.4.9
+- @gradio/atoms@0.6.0
+- @gradio/markdown@0.6.7
+
+## 0.6.8
+
+### Fixes
+
+- [#7564](https://github.com/gradio-app/gradio/pull/7564) [`5d1e8da`](https://github.com/gradio-app/gradio/commit/5d1e8dae5ac23f605c3b5f41dbe18751dff380a0) - batch UI updates on a per frame basis.  Thanks @pngwn!
+
+### Dependency updates
+
+- @gradio/upload@0.8.0
+- @gradio/markdown@0.6.6
+- @gradio/button@0.2.26
+
+## 0.6.7
+
+### Dependency updates
+
+- @gradio/button@0.2.25
+- @gradio/upload@0.7.7
+
+## 0.6.6
+
+### Patch Changes
+
+- Updated dependencies [[`8181695`](https://github.com/gradio-app/gradio/commit/8181695e70187e8bc2bf7518697098c8d1b9843d)]:
+  - @gradio/upload@0.7.6
+  - @gradio/button@0.2.24
+
+## 0.6.5
+
+### Features
+
+- [#7528](https://github.com/gradio-app/gradio/pull/7528) [`eda33b3`](https://github.com/gradio-app/gradio/commit/eda33b3763897a542acf298e523fa493dc655aee) - Refactors `get_fetchable_url_or_file()` to remove it from the frontend. Thanks [@abidlabs](https://github.com/abidlabs)!
+
+## 0.6.4
+
+### Fixes
+
+- [#7495](https://github.com/gradio-app/gradio/pull/7495) [`ddd4d3e`](https://github.com/gradio-app/gradio/commit/ddd4d3e4d3883fb7540d1df240fb08202fc77705) - ensure Dataframe headers are aligned with content when scrolling. Thanks [@abidlabs](https://github.com/abidlabs)!
+
+## 0.6.3
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @gradio/atoms@0.5.3
+  - @gradio/statustracker@0.4.7
+  - @gradio/upload@0.7.4
+  - @gradio/markdown@0.6.4
+  - @gradio/button@0.2.22
+
+## 0.6.2
+
+### Patch Changes
+
+- Updated dependencies [[`17fb116`](https://github.com/gradio-app/gradio/commit/17fb116492f951ab66e3a39b5fdfb598f5446b6f), [`065c5b1`](https://github.com/gradio-app/gradio/commit/065c5b163c4badb9d9cbd06d627fb4ba086003e7)]:
+  - @gradio/markdown@0.6.3
+  - @gradio/utils@0.3.0
+  - @gradio/atoms@0.5.2
+  - @gradio/button@0.2.21
+  - @gradio/statustracker@0.4.6
+  - @gradio/upload@0.7.3
+
+## 0.6.1
+
+### Fixes
+
+- [#7354](https://github.com/gradio-app/gradio/pull/7354) [`a7fa47a`](https://github.com/gradio-app/gradio/commit/a7fa47a175fbcf0fd6573ca19334a3a55b55bb24) - ensure Dataframes in background tabs are visible when the tab is selected. Thanks [@pngwn](https://github.com/pngwn)!
+
+## 0.6.0
+
+### Features
+
+- [#7298](https://github.com/gradio-app/gradio/pull/7298) [`e5344ba`](https://github.com/gradio-app/gradio/commit/e5344ba0cd63d21dbb525330bbc07ca2eca57832) - chore(deps): update dependency marked to v12. Thanks [@renovate](https://github.com/apps/renovate)!
+- [#7154](https://github.com/gradio-app/gradio/pull/7154) [`aab2a75`](https://github.com/gradio-app/gradio/commit/aab2a75f0610dd7ed0b481264c6b9f01cfe92094) - Allow selecting texts in dataframe cells. Thanks [@shubhamofbce](https://github.com/shubhamofbce)!
+
+### Fixes
+
+- [#7283](https://github.com/gradio-app/gradio/pull/7283) [`757dba6`](https://github.com/gradio-app/gradio/commit/757dba66baf624eae11ff076f0e8d6bfc2314630) - Add `show_label` check to `gr.Dataframe`. Thanks [@hannahblair](https://github.com/hannahblair)!
+
 ## 0.5.1
 
 ### Patch Changes

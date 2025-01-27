@@ -1,9 +1,21 @@
-<script>
-	import { Meta, Template, Story } from "@storybook/addon-svelte-csf";
+<script context="module">
+	import { Template, Story } from "@storybook/addon-svelte-csf";
 	import Audio from "./Index.svelte";
-</script>
+	import { allModes } from "../storybook/modes";
 
-<Meta title="Components/Audio" component={Audio} />
+	export const meta = {
+		title: "Components/Audio",
+		component: Audio,
+		parameters: {
+			chromatic: {
+				modes: {
+					desktop: allModes["desktop"],
+					mobile: allModes["mobile"]
+				}
+			}
+		}
+	};
+</script>
 
 <Template let:args>
 	<Audio value="Audio" {...args} />
@@ -16,6 +28,21 @@
 			path: "https://audio-samples.github.io/samples/mp3/blizzard_unconditional/sample-0.mp3",
 			url: "https://audio-samples.github.io/samples/mp3/blizzard_unconditional/sample-0.mp3",
 			orig_name: "sample-0.mp3"
+		},
+		label: "Audio Player"
+	}}
+/>
+
+<Story
+	name="Audio Player without recording waveform"
+	args={{
+		value: {
+			path: "https://audio-samples.github.io/samples/mp3/blizzard_unconditional/sample-0.mp3",
+			url: "https://audio-samples.github.io/samples/mp3/blizzard_unconditional/sample-0.mp3",
+			orig_name: "sample-0.mp3"
+		},
+		waveform_options: {
+			show_recording_waveform: false
 		},
 		label: "Audio Player"
 	}}

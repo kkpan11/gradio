@@ -1,10 +1,438 @@
 # @gradio/button
 
+## 0.4.2
+
+### Dependency updates
+
+- @gradio/upload@0.14.6
+
+## 0.4.1
+
+### Dependency updates
+
+- @gradio/client@1.10.0
+- @gradio/upload@0.14.5
+
+## 0.4.0
+
+### Features
+
+- [#10191](https://github.com/gradio-app/gradio/pull/10191) [`5ce2832`](https://github.com/gradio-app/gradio/commit/5ce28324971e974ae24dc9a229b2160793140fb2) - Support saving chat history in `gr.ChatInterface`.  Thanks @abidlabs!
+
+### Dependency updates
+
+- @gradio/utils@0.10.0
+- @gradio/upload@0.14.4
+- @gradio/client@1.9.0
+
+## 0.3.9
+
+### Dependency updates
+
+- @gradio/upload@0.14.3
+
+## 0.3.8
+
+### Dependency updates
+
+- @gradio/utils@0.9.0
+- @gradio/upload@0.14.2
+
+## 0.3.7
+
+### Dependency updates
+
+- @gradio/client@1.8.0
+- @gradio/utils@0.8.0
+- @gradio/upload@0.14.1
+
+## 0.3.6
+
+### Dependency updates
+
+- @gradio/upload@0.14.0
+
+## 0.3.5
+
+### Dependency updates
+
+- @gradio/client@1.7.1
+- @gradio/upload@0.13.5
+
+## 0.3.4
+
+### Dependency updates
+
+- @gradio/upload@0.13.4
+
+## 0.3.3
+
+### Dependency updates
+
+- @gradio/upload@0.13.3
+
+## 0.3.2
+
+### Fixes
+
+- [#9659](https://github.com/gradio-app/gradio/pull/9659) [`b1a0f6d`](https://github.com/gradio-app/gradio/commit/b1a0f6db0d6900cb4089f4d5809a5f1d5e2609ee) - Fix the behavior of `gr.LoginButton` locally and on Spaces.  Thanks @abidlabs!
+
+### Dependency updates
+
+- @gradio/client@1.7.0
+- @gradio/upload@0.13.2
+
+## 0.3.1
+
+### Dependency updates
+
+- @gradio/upload@0.13.1
+
+## 0.3.0
+
+### Features
+
+- [#8843](https://github.com/gradio-app/gradio/pull/8843) [`6f95286`](https://github.com/gradio-app/gradio/commit/6f95286337459efbccb95c9cfac63355669df9ee) - Adding new themes to Gradio 5.0
+- [#8843](https://github.com/gradio-app/gradio/pull/8843) [`6f95286`](https://github.com/gradio-app/gradio/commit/6f95286337459efbccb95c9cfac63355669df9ee) - Redesign `gr.Button()`
+- [#8843](https://github.com/gradio-app/gradio/pull/8843) [`6f95286`](https://github.com/gradio-app/gradio/commit/6f95286337459efbccb95c9cfac63355669df9ee) - Adds a "huggingface" button variant, and makes it the default for `gr.LoginButton` and `gr.DuplicateButton`
+- [#8843](https://github.com/gradio-app/gradio/pull/8843) [`6f95286`](https://github.com/gradio-app/gradio/commit/6f95286337459efbccb95c9cfac63355669df9ee) - UI theme fixes
+
+### Fixes
+
+
+- [#8843](https://github.com/gradio-app/gradio/pull/8843) [`6f95286`](https://github.com/gradio-app/gradio/commit/6f95286337459efbccb95c9cfac63355669df9ee) - Center icon in button when no text is present
+
+### Dependencies
+
+- @gradio/client@1.6.0
+- @gradio/upload@0.13.0
+- @gradio/utils@0.7.0
+
+## 0.3.0-beta.7
+
+### Features
+
+- [#9437](https://github.com/gradio-app/gradio/pull/9437) [`c3d93be`](https://github.com/gradio-app/gradio/commit/c3d93bef94b9401747a363f7bad88a1d347d535b) - Adding new themes to Gradio 5.0.  Thanks @allisonwhilden!
+
+### Dependency updates
+
+- @gradio/upload@0.13.0-beta.7
+
+## 0.3.0-beta.6
+
+### Dependency updates
+
+- @gradio/client@1.6.0-beta.4
+- @gradio/upload@0.13.0-beta.6
+
+## 0.3.0-beta.5
+
+### Features
+
+- [#9496](https://github.com/gradio-app/gradio/pull/9496) [`1647ebd`](https://github.com/gradio-app/gradio/commit/1647ebddc3e2ed6fc143a62629409e32afcc5801) - UI theme fixes.  Thanks @aliabid94!
+
+### Dependency updates
+
+- @gradio/upload@0.13.0-beta.5
+
+## 0.3.0-beta.4
+
+### Dependency updates
+
+- @gradio/upload@0.13.0-beta.4
+
+## 0.3.0-beta.3
+
+### Fixes
+
+- [#9405](https://github.com/gradio-app/gradio/pull/9405) [`bf27ff4`](https://github.com/gradio-app/gradio/commit/bf27ff4ac8ada33ea03dd26d5c1c1115aa1f318a) - Center icon in button when no text is present.  Thanks @abidlabs!
+
+### Dependency updates
+
+- @gradio/upload@0.13.0-beta.3
+- @gradio/client@1.6.0-beta.3
+
+## 0.3.0-beta.2
+
+### Dependency updates
+
+- @gradio/upload@0.13.0-beta.2
+- @gradio/client@1.6.0-beta.2
+- @gradio/utils@0.7.0-beta.2
+
+## 0.3.0-beta.1
+
+### Features
+
+- [#9167](https://github.com/gradio-app/gradio/pull/9167) [`e9e737e`](https://github.com/gradio-app/gradio/commit/e9e737eeeb61d0bbf43277c75b6ffed8b34aa445) - Redesign `gr.Button()`.  Thanks @hannahblair!
+- [#9254](https://github.com/gradio-app/gradio/pull/9254) [`03f3735`](https://github.com/gradio-app/gradio/commit/03f3735fba1fd4f1978b5431af9e67de3b6e7945) - Adds a "huggingface" button variant, and makes it the default for `gr.LoginButton` and `gr.DuplicateButton`.  Thanks @abidlabs!
+
+### Dependency updates
+
+- @gradio/utils@0.7.0-beta.1
+- @gradio/client@1.6.0-beta.1
+- @gradio/upload@0.12.4-beta.1
+
+## 0.2.51
+
+### Fixes
+
+- [#9163](https://github.com/gradio-app/gradio/pull/9163) [`2b6cbf2`](https://github.com/gradio-app/gradio/commit/2b6cbf25908e42cf027324e54ef2cc0baad11a91) - fix exports and generate types.  Thanks @pngwn!
+
+### Dependency updates
+
+- @gradio/utils@0.6.1
+- @gradio/client@1.5.2
+- @gradio/upload@0.12.4
+
+## 0.2.50
+
+### Features
+
+- [#9118](https://github.com/gradio-app/gradio/pull/9118) [`e1c404d`](https://github.com/gradio-app/gradio/commit/e1c404da1143fb52b659d03e028bdba1badf443d) - setup npm-previews of all packages.  Thanks @pngwn!
+- [#9102](https://github.com/gradio-app/gradio/pull/9102) [`efdc323`](https://github.com/gradio-app/gradio/commit/efdc3231a7bde38cfe45d10086d0d36a24c1b9b4) - Initial SSR refactor.  Thanks @pngwn!
+
+### Dependency updates
+
+- @gradio/utils@0.6.0
+- @gradio/upload@0.12.3
+- @gradio/client@1.5.1
+
+## 0.2.49
+
+### Dependency updates
+
+- @gradio/client@1.5.0
+- @gradio/upload@0.12.2
+
+## 0.2.48
+
+### Dependency updates
+
+- @gradio/utils@0.5.2
+- @gradio/upload@0.12.1
+
+## 0.2.47
+
+### Dependency updates
+
+- @gradio/client@1.4.0
+- @gradio/upload@0.12.0
+
+## 0.2.46
+
+### Dependency updates
+
+- @gradio/utils@0.5.1
+- @gradio/client@1.3.0
+- @gradio/upload@0.11.5
+
+## 0.2.45
+
+### Dependency updates
+
+- @gradio/upload@0.11.4
+- @gradio/client@1.2.1
+
+## 0.2.44
+
+### Dependency updates
+
+- @gradio/utils@0.5.0
+- @gradio/client@1.2.0
+- @gradio/upload@0.11.3
+
+## 0.2.43
+
+### Dependency updates
+
+- @gradio/client@1.1.1
+- @gradio/upload@0.11.2
+
+## 0.2.42
+
+### Dependency updates
+
+- @gradio/upload@0.11.1
+- @gradio/client@1.1.0
+
+## 0.2.41
+
+### Dependency updates
+
+- @gradio/client@1.0.0
+- @gradio/upload@0.11.0
+
+## 0.2.40
+
+### Dependency updates
+
+- @gradio/upload@0.10.7
+- @gradio/client@0.20.1
+
+## 0.2.39
+
+### Dependency updates
+
+- @gradio/client@0.20.0
+- @gradio/upload@0.10.6
+
+## 0.2.38
+
+### Dependency updates
+
+- @gradio/utils@0.4.2
+- @gradio/upload@0.10.5
+- @gradio/client@0.19.4
+
+## 0.2.37
+
+### Dependency updates
+
+- @gradio/client@0.19.3
+- @gradio/upload@0.10.4
+
+## 0.2.36
+
+### Dependency updates
+
+- @gradio/upload@0.10.3
+- @gradio/client@0.19.2
+
+## 0.2.35
+
+### Dependency updates
+
+- @gradio/client@0.19.1
+- @gradio/upload@0.10.2
+
+## 0.2.34
+
+### Dependency updates
+
+- @gradio/client@0.19.0
+- @gradio/upload@0.10.1
+
+## 0.2.33
+
+### Dependency updates
+
+- @gradio/client@0.18.0
+- @gradio/upload@0.10.0
+- @gradio/utils@0.4.1
+
+## 0.2.32
+
+### Fixes
+
+- [#8066](https://github.com/gradio-app/gradio/pull/8066) [`624f9b9`](https://github.com/gradio-app/gradio/commit/624f9b9477f74a581a6c14119234f9efdfcda398) - make gradio dev tools a local dependency rather than bundling.  Thanks @pngwn!
+
+### Dependency updates
+
+- @gradio/client@0.17.0
+- @gradio/upload@0.9.0
+- @gradio/utils@0.4.0
+
+## 0.2.31
+
+### Dependency updates
+
+- @gradio/utils@0.3.2
+- @gradio/client@0.16.0
+- @gradio/upload@0.8.5
+
+## 0.2.30
+
+### Dependency updates
+
+- @gradio/utils@0.3.1
+- @gradio/upload@0.8.4
+- @gradio/client@0.15.1
+
+## 0.2.29
+
+### Dependency updates
+
+- @gradio/upload@0.8.3
+- @gradio/client@0.15.0
+
+## 0.2.28
+
+### Dependency updates
+
+- @gradio/upload@0.8.2
+
+## 0.2.27
+
+### Dependency updates
+
+- @gradio/upload@0.8.1
+
+## 0.2.26
+
+### Dependency updates
+
+- @gradio/client@0.14.0
+- @gradio/upload@0.8.0
+
+## 0.2.25
+
+### Dependency updates
+
+- @gradio/upload@0.7.7
+- @gradio/client@0.13.0
+
+## 0.2.24
+
+### Patch Changes
+
+- Updated dependencies [[`8181695`](https://github.com/gradio-app/gradio/commit/8181695e70187e8bc2bf7518697098c8d1b9843d)]:
+  - @gradio/upload@0.7.6
+
+## 0.2.23
+
+### Features
+
+- [#7528](https://github.com/gradio-app/gradio/pull/7528) [`eda33b3`](https://github.com/gradio-app/gradio/commit/eda33b3763897a542acf298e523fa493dc655aee) - Refactors `get_fetchable_url_or_file()` to remove it from the frontend. Thanks [@abidlabs](https://github.com/abidlabs)!
+
+## 0.2.22
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @gradio/upload@0.7.4
+
+## 0.2.21
+
+### Patch Changes
+
+- Updated dependencies [[`065c5b1`](https://github.com/gradio-app/gradio/commit/065c5b163c4badb9d9cbd06d627fb4ba086003e7), [`32b317f`](https://github.com/gradio-app/gradio/commit/32b317f24e3d43f26684bb9f3964f31efd0ea556)]:
+  - @gradio/utils@0.3.0
+  - @gradio/client@0.12.1
+  - @gradio/upload@0.7.3
+
+## 0.2.20
+
+### Patch Changes
+
+- Updated dependencies [[`49d9c48`](https://github.com/gradio-app/gradio/commit/49d9c48537aa706bf72628e3640389470138bdc6)]:
+  - @gradio/client@0.12.0
+  - @gradio/upload@0.7.2
+
+## 0.2.19
+
+### Patch Changes
+
+- Updated dependencies [[`572e360`](https://github.com/gradio-app/gradio/commit/572e360fff4a03c335b86e1a7517a44cb6af2bcd), [`68a54a7`](https://github.com/gradio-app/gradio/commit/68a54a7a310d8d7072fdae930bf1cfdf12c45a7f), [`fdd1521`](https://github.com/gradio-app/gradio/commit/fdd15213c24b9cbc58bbc1b6beb4af7c18f48557), [`c3e61e4`](https://github.com/gradio-app/gradio/commit/c3e61e4f70696a71aede67b65d28447eb67daf16)]:
+  - @gradio/upload@0.7.1
+  - @gradio/client@0.11.0
+  - @gradio/utils@0.2.2
+
 ## 0.2.18
 
 ### Fixes
 
-- [#7126](https://github.com/gradio-app/gradio/pull/7126) [`5727b92`](https://github.com/gradio-app/gradio/commit/5727b92abc8a00a675bfc0a921b38de771af947b) - Allow buttons to take null value.  Thanks [@abidlabs](https://github.com/abidlabs)!
+- [#7126](https://github.com/gradio-app/gradio/pull/7126) [`5727b92`](https://github.com/gradio-app/gradio/commit/5727b92abc8a00a675bfc0a921b38de771af947b) - Allow buttons to take null value. Thanks [@abidlabs](https://github.com/abidlabs)!
 
 ## 0.2.17
 

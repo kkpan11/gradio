@@ -1,5 +1,620 @@
 # @gradio/fileexplorer
 
+## 0.5.13
+
+### Dependency updates
+
+- @gradio/upload@0.14.6
+- @gradio/statustracker@0.10.2
+- @gradio/file@0.12.2
+- @gradio/checkbox@0.4.12
+
+## 0.5.12
+
+### Dependency updates
+
+- @gradio/atoms@0.13.1
+- @gradio/statustracker@0.10.1
+- @gradio/client@1.10.0
+- @gradio/icons@0.10.0
+- @gradio/upload@0.14.5
+- @gradio/file@0.12.1
+- @gradio/checkbox@0.4.11
+
+## 0.5.11
+
+### Dependency updates
+
+- @gradio/atoms@0.13.0
+- @gradio/utils@0.10.0
+- @gradio/upload@0.14.4
+- @gradio/client@1.9.0
+- @gradio/icons@0.9.0
+- @gradio/statustracker@0.10.0
+- @gradio/file@0.12.0
+- @gradio/checkbox@0.4.10
+
+## 0.5.10
+
+### Dependency updates
+
+- @gradio/statustracker@0.9.7
+- @gradio/upload@0.14.3
+- @gradio/atoms@0.12.0
+- @gradio/file@0.11.3
+- @gradio/checkbox@0.4.9
+
+## 0.5.9
+
+### Dependency updates
+
+- @gradio/atoms@0.11.2
+- @gradio/utils@0.9.0
+- @gradio/statustracker@0.9.6
+- @gradio/upload@0.14.2
+- @gradio/file@0.11.2
+- @gradio/checkbox@0.4.8
+
+## 0.5.8
+
+### Dependency updates
+
+- @gradio/atoms@0.11.1
+- @gradio/client@1.8.0
+- @gradio/utils@0.8.0
+- @gradio/upload@0.14.1
+- @gradio/statustracker@0.9.5
+- @gradio/file@0.11.1
+- @gradio/checkbox@0.4.7
+
+## 0.5.7
+
+### Fixes
+
+- [#9835](https://github.com/gradio-app/gradio/pull/9835) [`4d90883`](https://github.com/gradio-app/gradio/commit/4d9088354df528c8edf981f3e756d8927d3e8805) - Allows selection of directories in File Explorer.  Thanks @aliabid94!
+
+### Dependency updates
+
+- @gradio/statustracker@0.9.4
+- @gradio/atoms@0.11.0
+- @gradio/file@0.11.0
+- @gradio/upload@0.14.0
+- @gradio/checkbox@0.4.6
+
+## 0.5.6
+
+### Dependency updates
+
+- @gradio/statustracker@0.9.3
+- @gradio/atoms@0.10.1
+- @gradio/client@1.7.1
+- @gradio/upload@0.13.5
+- @gradio/checkbox@0.4.5
+- @gradio/file@0.10.6
+
+## 0.5.5
+
+### Dependency updates
+
+- @gradio/statustracker@0.9.2
+- @gradio/atoms@0.10.0
+- @gradio/icons@0.8.1
+- @gradio/upload@0.13.4
+- @gradio/file@0.10.5
+- @gradio/checkbox@0.4.4
+
+## 0.5.4
+
+### Dependency updates
+
+- @gradio/statustracker@0.9.1
+- @gradio/upload@0.13.3
+- @gradio/atoms@0.9.2
+- @gradio/checkbox@0.4.3
+- @gradio/file@0.10.4
+
+## 0.5.3
+
+### Dependency updates
+
+- @gradio/atoms@0.9.1
+- @gradio/statustracker@0.9.0
+- @gradio/client@1.7.0
+- @gradio/upload@0.13.2
+- @gradio/file@0.10.3
+- @gradio/checkbox@0.4.2
+
+## 0.5.2
+
+### Dependency updates
+
+- @gradio/file@0.10.2
+- @gradio/upload@0.13.1
+
+## 0.5.1
+
+### Dependency updates
+
+- @gradio/statustracker@0.8.1
+- @gradio/checkbox@0.4.1
+- @gradio/file@0.10.1
+
+## 0.5.0
+
+### Features
+
+- [#8843](https://github.com/gradio-app/gradio/pull/8843) [`6f95286`](https://github.com/gradio-app/gradio/commit/6f95286337459efbccb95c9cfac63355669df9ee) - Standardize `height` across components and add `max_height` and `min_height` parameters where appropriate
+
+### Dependencies
+
+- @gradio/atoms@0.9.0
+- @gradio/checkbox@0.4.0
+- @gradio/client@1.6.0
+- @gradio/file@0.10.0
+- @gradio/icons@0.8.0
+- @gradio/statustracker@0.8.0
+- @gradio/upload@0.13.0
+- @gradio/utils@0.7.0
+
+## 0.5.0-beta.7
+
+### Dependency updates
+
+- @gradio/upload@0.13.0-beta.7
+- @gradio/statustracker@0.8.0-beta.5
+- @gradio/icons@0.8.0-beta.4
+- @gradio/atoms@0.9.0-beta.5
+- @gradio/checkbox@0.4.0-beta.5
+- @gradio/file@0.10.0-beta.7
+
+## 0.5.0-beta.6
+
+### Dependency updates
+
+- @gradio/statustracker@0.8.0-beta.4
+- @gradio/atoms@0.9.0-beta.4
+- @gradio/client@1.6.0-beta.4
+- @gradio/upload@0.13.0-beta.6
+- @gradio/checkbox@0.4.0-beta.4
+- @gradio/file@0.10.0-beta.6
+
+## 0.5.0-beta.5
+
+### Dependency updates
+
+- @gradio/upload@0.13.0-beta.5
+- @gradio/statustracker@0.8.0-beta.3
+- @gradio/icons@0.8.0-beta.3
+- @gradio/atoms@0.9.0-beta.3
+- @gradio/file@0.10.0-beta.5
+- @gradio/checkbox@0.4.0-beta.3
+
+## 0.5.0-beta.4
+
+### Dependency updates
+
+- @gradio/statustracker@0.8.0-beta.2
+- @gradio/upload@0.13.0-beta.4
+- @gradio/checkbox@0.4.0-beta.2
+- @gradio/file@0.10.0-beta.4
+
+## 0.5.0-beta.3
+
+### Dependency updates
+
+- @gradio/upload@0.13.0-beta.3
+- @gradio/client@1.6.0-beta.3
+- @gradio/file@0.10.0-beta.3
+
+## 0.5.0-beta.2
+
+### Features
+
+- [#9313](https://github.com/gradio-app/gradio/pull/9313) [`1fef9d9`](https://github.com/gradio-app/gradio/commit/1fef9d9a26f0ebce4de18c486702661f6539b1c6) - Standardize `height` across components and add `max_height` and `min_height` parameters where appropriate.  Thanks @abidlabs!
+
+### Dependency updates
+
+- @gradio/atoms@0.9.0-beta.2
+- @gradio/upload@0.13.0-beta.2
+- @gradio/client@1.6.0-beta.2
+- @gradio/icons@0.8.0-beta.2
+- @gradio/statustracker@0.8.0-beta.2
+- @gradio/utils@0.7.0-beta.2
+- @gradio/file@0.10.0-beta.2
+- @gradio/checkbox@0.4.0-beta.2
+
+## 0.4.19-beta.1
+
+### Dependency updates
+
+- @gradio/atoms@0.8.1-beta.1
+- @gradio/icons@0.8.0-beta.1
+- @gradio/statustracker@0.8.0-beta.1
+- @gradio/utils@0.7.0-beta.1
+- @gradio/client@1.6.0-beta.1
+- @gradio/upload@0.12.4-beta.1
+- @gradio/file@0.9.4-beta.1
+- @gradio/checkbox@0.4.0-beta.1
+
+## 0.4.19
+
+### Fixes
+
+- [#9163](https://github.com/gradio-app/gradio/pull/9163) [`2b6cbf2`](https://github.com/gradio-app/gradio/commit/2b6cbf25908e42cf027324e54ef2cc0baad11a91) - fix exports and generate types.  Thanks @pngwn!
+
+### Dependency updates
+
+- @gradio/utils@0.6.1
+- @gradio/statustracker@0.7.6
+- @gradio/atoms@0.8.1
+- @gradio/icons@0.7.2
+- @gradio/client@1.5.2
+- @gradio/upload@0.12.4
+- @gradio/file@0.9.4
+- @gradio/checkbox@0.3.13
+
+## 0.4.18
+
+### Features
+
+- [#9118](https://github.com/gradio-app/gradio/pull/9118) [`e1c404d`](https://github.com/gradio-app/gradio/commit/e1c404da1143fb52b659d03e028bdba1badf443d) - setup npm-previews of all packages.  Thanks @pngwn!
+
+### Dependency updates
+
+- @gradio/utils@0.6.0
+- @gradio/upload@0.12.3
+- @gradio/atoms@0.8.0
+- @gradio/client@1.5.1
+- @gradio/statustracker@0.7.5
+- @gradio/icons@0.7.1
+- @gradio/checkbox@0.3.12
+- @gradio/file@0.9.3
+
+## 0.4.17
+
+### Dependency updates
+
+- @gradio/atoms@0.7.9
+- @gradio/statustracker@0.7.4
+- @gradio/client@1.5.0
+- @gradio/icons@0.7.0
+- @gradio/upload@0.12.2
+- @gradio/file@0.9.2
+- @gradio/checkbox@0.3.11
+
+## 0.4.16
+
+### Dependency updates
+
+- @gradio/atoms@0.7.8
+- @gradio/icons@0.6.1
+- @gradio/utils@0.5.2
+- @gradio/statustracker@0.7.3
+- @gradio/upload@0.12.1
+- @gradio/file@0.9.1
+- @gradio/checkbox@0.3.10
+
+## 0.4.15
+
+### Dependency updates
+
+- @gradio/client@1.4.0
+- @gradio/statustracker@0.7.2
+- @gradio/file@0.9.0
+- @gradio/upload@0.12.0
+- @gradio/atoms@0.7.7
+- @gradio/checkbox@0.3.9
+
+## 0.4.14
+
+### Dependency updates
+
+- @gradio/atoms@0.7.6
+- @gradio/utils@0.5.1
+- @gradio/statustracker@0.7.1
+- @gradio/client@1.3.0
+- @gradio/upload@0.11.5
+- @gradio/icons@0.6.0
+- @gradio/file@0.8.5
+- @gradio/checkbox@0.3.8
+
+## 0.4.13
+
+### Dependency updates
+
+- @gradio/upload@0.11.4
+- @gradio/client@1.2.1
+- @gradio/file@0.8.4
+
+## 0.4.12
+
+### Dependency updates
+
+- @gradio/atoms@0.7.5
+- @gradio/utils@0.5.0
+- @gradio/icons@0.5.0
+- @gradio/client@1.2.0
+- @gradio/statustracker@0.7.0
+- @gradio/checkbox@0.3.7
+- @gradio/file@0.8.3
+- @gradio/upload@0.11.3
+
+## 0.4.11
+
+### Dependency updates
+
+- @gradio/client@1.1.1
+- @gradio/upload@0.11.2
+- @gradio/file@0.8.2
+
+## 0.4.10
+
+### Dependency updates
+
+- @gradio/upload@0.11.1
+- @gradio/client@1.1.0
+- @gradio/file@0.8.1
+
+## 0.4.9
+
+### Dependency updates
+
+- @gradio/statustracker@0.6.0
+- @gradio/client@1.0.0
+- @gradio/file@0.8.0
+- @gradio/upload@0.11.0
+- @gradio/checkbox@0.3.6
+
+## 0.4.8
+
+### Dependency updates
+
+- @gradio/upload@0.10.7
+- @gradio/client@0.20.1
+- @gradio/file@0.7.7
+
+## 0.4.7
+
+### Dependency updates
+
+- @gradio/client@0.20.0
+- @gradio/statustracker@0.6.0
+- @gradio/file@0.7.6
+- @gradio/upload@0.10.6
+- @gradio/checkbox@0.3.6
+
+## 0.4.6
+
+### Dependency updates
+
+- @gradio/utils@0.4.2
+- @gradio/atoms@0.7.4
+- @gradio/statustracker@0.5.5
+- @gradio/upload@0.10.5
+- @gradio/client@0.19.4
+- @gradio/file@0.7.5
+- @gradio/checkbox@0.3.5
+
+## 0.4.5
+
+### Dependency updates
+
+- @gradio/client@0.19.3
+- @gradio/statustracker@0.5.4
+- @gradio/file@0.7.4
+- @gradio/upload@0.10.4
+- @gradio/checkbox@0.3.4
+
+## 0.4.4
+
+### Dependency updates
+
+- @gradio/upload@0.10.3
+- @gradio/client@0.19.2
+- @gradio/file@0.7.3
+
+## 0.4.3
+
+### Dependency updates
+
+- @gradio/statustracker@0.5.3
+- @gradio/client@0.19.1
+- @gradio/checkbox@0.3.3
+- @gradio/file@0.7.2
+- @gradio/upload@0.10.2
+
+## 0.4.2
+
+### Dependency updates
+
+- @gradio/atoms@0.7.3
+- @gradio/statustracker@0.5.2
+- @gradio/client@0.19.0
+- @gradio/icons@0.4.1
+- @gradio/upload@0.10.1
+- @gradio/file@0.7.1
+- @gradio/checkbox@0.3.2
+
+## 0.4.1
+
+### Dependency updates
+
+- @gradio/atoms@0.7.2
+- @gradio/client@0.18.0
+- @gradio/upload@0.10.0
+- @gradio/utils@0.4.1
+- @gradio/statustracker@0.5.1
+- @gradio/file@0.7.0
+- @gradio/checkbox@0.3.1
+
+## 0.4.0
+
+### Highlights
+
+#### Setting File Upload Limits ([#7909](https://github.com/gradio-app/gradio/pull/7909) [`2afca65`](https://github.com/gradio-app/gradio/commit/2afca6541912b37dc84f447c7ad4af21607d7c72))
+
+We have added a `max_file_size` size parameter to `launch()` that limits to size of files uploaded to the server. This limit applies to each individual file. This parameter can be specified as a string or an integer (corresponding to the size in bytes).
+
+The following code snippet sets a max file size of 5 megabytes.
+
+```python
+import gradio as gr
+
+demo = gr.Interface(lambda x: x, "image", "image")
+
+demo.launch(max_file_size="5mb")
+# or
+demo.launch(max_file_size=5 * gr.FileSize.MB)
+```
+
+![max_file_size_upload](https://github.com/gradio-app/gradio/assets/41651716/7547330c-a082-4901-a291-3f150a197e45)
+
+
+#### Error states can now be cleared
+
+When a component encounters an error, the error state shown in the UI can now be cleared by clicking on the `x` icon in the top right of the component. This applies to all types of errors, whether it's raised in the UI or the server.
+
+![error_modal_calculator](https://github.com/gradio-app/gradio/assets/41651716/16cb071c-accd-45a6-9c18-0dea27d4bd98)
+
+ Thanks @freddyaboulton!
+
+### Fixes
+
+- [#8066](https://github.com/gradio-app/gradio/pull/8066) [`624f9b9`](https://github.com/gradio-app/gradio/commit/624f9b9477f74a581a6c14119234f9efdfcda398) - make gradio dev tools a local dependency rather than bundling.  Thanks @pngwn!
+
+### Dependency updates
+
+- @gradio/atoms@0.7.1
+- @gradio/client@0.17.0
+- @gradio/checkbox@0.3.0
+- @gradio/file@0.6.0
+- @gradio/statustracker@0.5.0
+- @gradio/upload@0.9.0
+- @gradio/utils@0.4.0
+
+## 0.3.32
+
+### Dependency updates
+
+- @gradio/utils@0.3.2
+- @gradio/statustracker@0.4.12
+- @gradio/client@0.16.0
+- @gradio/upload@0.8.5
+- @gradio/atoms@0.7.0
+- @gradio/icons@0.4.0
+- @gradio/file@0.5.12
+- @gradio/checkbox@0.2.15
+
+## 0.3.31
+
+### Dependency updates
+
+- @gradio/utils@0.3.1
+- @gradio/atoms@0.6.2
+- @gradio/statustracker@0.4.11
+- @gradio/upload@0.8.4
+- @gradio/client@0.15.1
+- @gradio/file@0.5.11
+- @gradio/checkbox@0.2.14
+
+## 0.3.30
+
+### Dependency updates
+
+- @gradio/upload@0.8.3
+- @gradio/client@0.15.0
+- @gradio/file@0.5.10
+
+## 0.3.29
+
+### Dependency updates
+
+- @gradio/atoms@0.6.1
+- @gradio/statustracker@0.4.10
+- @gradio/icons@0.3.4
+- @gradio/upload@0.8.2
+- @gradio/file@0.5.9
+- @gradio/checkbox@0.2.13
+
+## 0.3.28
+
+### Dependency updates
+
+- @gradio/upload@0.8.1
+- @gradio/statustracker@0.4.9
+- @gradio/atoms@0.6.0
+- @gradio/file@0.5.8
+- @gradio/checkbox@0.2.12
+
+## 0.3.27
+
+### Dependency updates
+
+- @gradio/client@0.14.0
+- @gradio/upload@0.8.0
+- @gradio/file@0.5.7
+
+## 0.3.26
+
+### Dependency updates
+
+- @gradio/upload@0.7.7
+- @gradio/client@0.13.0
+- @gradio/file@0.5.6
+
+## 0.3.25
+
+### Patch Changes
+
+- Updated dependencies [[`8181695`](https://github.com/gradio-app/gradio/commit/8181695e70187e8bc2bf7518697098c8d1b9843d)]:
+  - @gradio/upload@0.7.6
+  - @gradio/file@0.5.5
+
+## 0.3.24
+
+### Patch Changes
+
+- Updated dependencies [[`26356a6`](https://github.com/gradio-app/gradio/commit/26356a623c4196f48ca236d973a597831743cdb8), [`eda33b3`](https://github.com/gradio-app/gradio/commit/eda33b3763897a542acf298e523fa493dc655aee), [`4b0d589`](https://github.com/gradio-app/gradio/commit/4b0d58933057432758a54169a360eb352903d6b4)]:
+  - @gradio/file@0.5.4
+  - @gradio/upload@0.7.5
+  - @gradio/client@0.12.2
+
+## 0.3.23
+
+### Patch Changes
+
+- Updated dependencies [[`98a2719`](https://github.com/gradio-app/gradio/commit/98a2719bfb9c64338caf9009891b6c6b0b33ea89), [`9c36572`](https://github.com/gradio-app/gradio/commit/9c36572e32aeec6e6352a861dfea6ee0f9a15e79)]:
+  - @gradio/statustracker@0.4.8
+  - @gradio/file@0.5.3
+  - @gradio/checkbox@0.2.11
+
+## 0.3.22
+
+### Fixes
+
+- [#7441](https://github.com/gradio-app/gradio/pull/7441) [`f52cab6`](https://github.com/gradio-app/gradio/commit/f52cab634b94638d7f4625d40bf3d9afbe68040b) - Dispatch change event for file explorer. Thanks [@aliabid94](https://github.com/aliabid94)!
+
+## 0.3.21
+
+### Fixes
+
+- [#7337](https://github.com/gradio-app/gradio/pull/7337) [`65437ce`](https://github.com/gradio-app/gradio/commit/65437ce832f806da316aa074539b6263e1d8b7ac) - Improve File Explorer performance. Thanks [@aliabid94](https://github.com/aliabid94)!
+
+## 0.3.20
+
+### Patch Changes
+
+- Updated dependencies [[`f35f615`](https://github.com/gradio-app/gradio/commit/f35f615e33a5dd90bfeb106b6f5dca689849fcef), [`49d9c48`](https://github.com/gradio-app/gradio/commit/49d9c48537aa706bf72628e3640389470138bdc6)]:
+  - @gradio/file@0.5.0
+  - @gradio/client@0.12.0
+  - @gradio/upload@0.7.2
+
+## 0.3.19
+
+### Fixes
+
+- [#7192](https://github.com/gradio-app/gradio/pull/7192) [`8dd6f4b`](https://github.com/gradio-app/gradio/commit/8dd6f4bc1901792f05cd59e86df7b1dbab692739) - Handle the case where examples is `null` for all components. Thanks [@abidlabs](https://github.com/abidlabs)!
+
 ## 0.3.18
 
 ### Patch Changes

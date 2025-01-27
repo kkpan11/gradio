@@ -5,14 +5,15 @@
 
 	import type { FileData } from "@gradio/client";
 	import type { LoadingStatus } from "@gradio/statustracker";
+	import { afterUpdate, onMount } from "svelte";
 
 	import StaticAudio from "./static/StaticAudio.svelte";
 	import InteractiveAudio from "./interactive/InteractiveAudio.svelte";
 	import { StatusTracker } from "@gradio/statustracker";
 	import { Block, UploadText } from "@gradio/atoms";
 	import type { WaveformOptions } from "./shared/types";
-	import { normalise_file } from "@gradio/client";
 
+	export let value_is_output = false;
 	export let elem_id = "";
 	export let elem_classes: string[] = [];
 	export let visible = true;
@@ -26,19 +27,38 @@
 	export let label: string;
 	export let root: string;
 	export let show_label: boolean;
-	export let proxy_url: null | string;
 	export let container = true;
 	export let scale: number | null = null;
 	export let min_width: number | undefined = undefined;
 	export let loading_status: LoadingStatus;
 	export let autoplay = false;
+	export let loop = false;
 	export let show_download_button: boolean;
 	export let show_share_button = false;
 	export let editable = true;
-	export let waveform_options: WaveformOptions = {};
+	export let waveform_options: WaveformOptions = {
+		show_recording_waveform: true
+	};
 	export let pending: boolean;
 	export let streaming: boolean;
+	export let stream_every: number;
+	export let input_ready: boolean;
+	export let recording = false;
+	let uploading = false;
+	$: input_ready = !uploading;
+
+	let stream_state = "closed";
+	let _modify_stream: (state: "open" | "closed" | "waiting") => void;
+	export function modify_stream_state(
+		state: "open" | "closed" | "waiting"
+	): void {
+		stream_state = state;
+		_modify_stream(state);
+	}
+	export const get_stream_state: () => void = () => stream_state;
+	export let set_time_limit: (time: number) => void;
 	export let gradio: Gradio<{
+		input: never;
 		change: typeof value;
 		stream: typeof value;
 		error: string;
@@ -54,11 +74,11 @@
 		upload: never;
 		clear: never;
 		share: ShareData;
+		clear_status: LoadingStatus;
+		close_stream: string;
 	}>;
 
-	let old_value: null | FileData | string = null;
-	let _value: null | FileData;
-	$: _value = normalise_file(value, root, proxy_url);
+	let old_value: null | FileData = null;
 
 	let active_source: "microphone" | "upload";
 
@@ -80,6 +100,9 @@
 		if (JSON.stringify(value) !== JSON.stringify(old_value)) {
 			old_value = value;
 			gradio.dispatch("change");
+			if (!value_is_output) {
+				gradio.dispatch("input");
+			}
 		}
 	}
 
@@ -91,14 +114,23 @@
 
 	let waveform_settings: Record<string, any>;
 
-	let color_accent = getComputedStyle(
-		document.documentElement
-	).getPropertyValue("--color-accent");
+	let color_accent = "darkorange";
+
+	onMount(() => {
+		color_accent = getComputedStyle(document?.documentElement).getPropertyValue(
+			"--color-accent"
+		);
+		set_trim_region_colour();
+		waveform_settings.waveColor = waveform_options.waveform_color || "#9ca3af";
+		waveform_settings.progressColor =
+			waveform_options.waveform_progress_color || color_accent;
+		waveform_settings.mediaControls = waveform_options.show_controls;
+		waveform_settings.sampleRate = waveform_options.sample_rate || 44100;
+	});
 
 	$: waveform_settings = {
 		height: 50,
-		waveColor: waveform_options.waveform_color || "#9ca3af",
-		progressColor: waveform_options.waveform_progress_color || color_accent,
+
 		barWidth: 2,
 		barGap: 3,
 		cursorWidth: 2,
@@ -107,9 +139,7 @@
 		barRadius: 10,
 		dragToSeek: true,
 		normalize: true,
-		minPxPerSec: 20,
-		mediaControls: waveform_options.show_controls,
-		sampleRate: waveform_options.sample_rate || 44100
+		minPxPerSec: 20
 	};
 
 	const trim_region_settings = {
@@ -117,6 +147,13 @@
 		drag: true,
 		resize: true
 	};
+
+	function set_trim_region_colour(): void {
+		document.documentElement.style.setProperty(
+			"--trim-region-color",
+			trim_region_settings.color || color_accent
+		);
+	}
 
 	function handle_error({ detail }: CustomEvent<string>): void {
 		const [level, status] = detail.includes("Invalid file type")
@@ -127,6 +164,10 @@
 		loading_status.message = detail;
 		gradio.dispatch(level as "error" | "warning", detail);
 	}
+
+	afterUpdate(() => {
+		value_is_output = false;
+	});
 </script>
 
 {#if !interactive}
@@ -134,6 +175,7 @@
 		variant={"solid"}
 		border_mode={dragging ? "focus" : "base"}
 		padding={false}
+		allow_overflow={false}
 		{elem_id}
 		{elem_classes}
 		{visible}
@@ -145,6 +187,7 @@
 			autoscroll={gradio.autoscroll}
 			i18n={gradio.i18n}
 			{...loading_status}
+			on:clear_status={() => gradio.dispatch("clear_status", loading_status)}
 		/>
 
 		<StaticAudio
@@ -152,8 +195,9 @@
 			{show_label}
 			{show_download_button}
 			{show_share_button}
-			value={_value}
+			{value}
 			{label}
+			{loop}
 			{waveform_settings}
 			{waveform_options}
 			{editable}
@@ -169,6 +213,7 @@
 		variant={value === null && active_source === "upload" ? "dashed" : "solid"}
 		border_mode={dragging ? "focus" : "base"}
 		padding={false}
+		allow_overflow={false}
 		{elem_id}
 		{elem_classes}
 		{visible}
@@ -180,12 +225,13 @@
 			autoscroll={gradio.autoscroll}
 			i18n={gradio.i18n}
 			{...loading_status}
+			on:clear_status={() => gradio.dispatch("clear_status", loading_status)}
 		/>
 		<InteractiveAudio
 			{label}
 			{show_label}
 			{show_download_button}
-			value={_value}
+			{value}
 			on:change={({ detail }) => (value = detail)}
 			on:stream={({ detail }) => {
 				value = detail;
@@ -197,9 +243,13 @@
 			{active_source}
 			{pending}
 			{streaming}
+			bind:recording
+			{loop}
+			max_file_size={gradio.max_file_size}
 			{handle_reset_value}
 			{editable}
 			bind:dragging
+			bind:uploading
 			on:edit={() => gradio.dispatch("edit")}
 			on:play={() => gradio.dispatch("play")}
 			on:pause={() => gradio.dispatch("pause")}
@@ -210,10 +260,16 @@
 			on:upload={() => gradio.dispatch("upload")}
 			on:clear={() => gradio.dispatch("clear")}
 			on:error={handle_error}
+			on:close_stream={() => gradio.dispatch("close_stream", "stream")}
 			i18n={gradio.i18n}
 			{waveform_settings}
 			{waveform_options}
 			{trim_region_settings}
+			{stream_every}
+			bind:modify_stream={_modify_stream}
+			bind:set_time_limit
+			upload={(...args) => gradio.client.upload(...args)}
+			stream_handler={(...args) => gradio.client.stream(...args)}
 		>
 			<UploadText i18n={gradio.i18n} type="audio" />
 		</InteractiveAudio>

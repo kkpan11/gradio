@@ -1,47 +1,45 @@
 """
 Defines helper methods useful for loading and caching Interface examples.
 """
+
 from __future__ import annotations
 
 import ast
+import copy
 import csv
 import inspect
 import os
 import shutil
-import subprocess
-import tempfile
 import warnings
+from collections.abc import Callable, Iterable, Sequence
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Iterable, Literal, Optional
+from typing import TYPE_CHECKING, Any, Literal, Optional
 
-import numpy as np
-import PIL
-import PIL.Image
 from gradio_client import utils as client_utils
-from gradio_client.documentation import document, set_documentation_group
+from gradio_client.documentation import document
 
 from gradio import components, oauth, processing_utils, routes, utils, wasm_utils
-from gradio.context import Context, LocalContext
+from gradio.context import Context, LocalContext, get_blocks_context
 from gradio.data_classes import GradioModel, GradioRootModel
-from gradio.events import EventData
+from gradio.events import Dependency, EventData
 from gradio.exceptions import Error
 from gradio.flagging import CSVLogger
+from gradio.utils import UnhashableKeyDict
 
 if TYPE_CHECKING:  # Only import for type checking (to avoid circular imports).
     from gradio.components import Component
 
 LOG_FILE = "log.csv"
 
-set_documentation_group("helpers")
-
 
 def create_examples(
     examples: list[Any] | list[list[Any]] | str,
-    inputs: Component | list[Component],
-    outputs: Component | list[Component] | None = None,
+    inputs: Component | Sequence[Component],
+    outputs: Component | Sequence[Component] | None = None,
     fn: Callable | None = None,
-    cache_examples: bool = False,
+    cache_examples: bool | None = None,
+    cache_mode: Literal["eager", "lazy"] | None = None,
     examples_per_page: int = 10,
     _api_mode: bool = False,
     label: str | None = None,
@@ -51,6 +49,9 @@ def create_examples(
     postprocess: bool = True,
     api_name: str | Literal[False] = "load_example",
     batch: bool = False,
+    *,
+    example_labels: list[str] | None = None,
+    visible: bool = True,
 ):
     """Top-level synchronous function that creates Examples. Provided for backwards compatibility, i.e. so that gr.Examples(...) can be used to create the Examples component."""
     examples_obj = Examples(
@@ -59,6 +60,7 @@ def create_examples(
         outputs=outputs,
         fn=fn,
         cache_examples=cache_examples,
+        cache_mode=cache_mode,
         examples_per_page=examples_per_page,
         _api_mode=_api_mode,
         label=label,
@@ -68,6 +70,8 @@ def create_examples(
         postprocess=postprocess,
         api_name=api_name,
         batch=batch,
+        example_labels=example_labels,
+        visible=visible,
         _initiated_directly=False,
     )
     examples_obj.create()
@@ -82,17 +86,18 @@ class Examples:
     assigns event listener so that clicking on an example populates the input/output
     components. Optionally handles example caching for fast inference.
 
-    Demos: blocks_inputs, fake_gan
+    Demos: calculator_blocks
     Guides: more-on-examples-and-flagging, using-hugging-face-integrations, image-classification-in-pytorch, image-classification-in-tensorflow, image-classification-with-vision-transformers, create-your-own-friends-with-a-gan
     """
 
     def __init__(
         self,
         examples: list[Any] | list[list[Any]] | str,
-        inputs: Component | list[Component],
-        outputs: Component | list[Component] | None = None,
+        inputs: Component | Sequence[Component],
+        outputs: Component | Sequence[Component] | None = None,
         fn: Callable | None = None,
-        cache_examples: bool = False,
+        cache_examples: bool | None = None,
+        cache_mode: Literal["eager", "lazy"] | None = None,
         examples_per_page: int = 10,
         _api_mode: bool = False,
         label: str | None = "Examples",
@@ -102,35 +107,76 @@ class Examples:
         postprocess: bool = True,
         api_name: str | Literal[False] = "load_example",
         batch: bool = False,
+        *,
+        example_labels: list[str] | None = None,
+        visible: bool = True,
         _initiated_directly: bool = True,
     ):
         """
         Parameters:
             examples: example inputs that can be clicked to populate specific components. Should be nested list, in which the outer list consists of samples and each inner list consists of an input corresponding to each input component. A string path to a directory of examples can also be provided but it should be within the directory with the python file running the gradio app. If there are multiple input components and a directory is provided, a log.csv file must be present in the directory to link corresponding inputs.
             inputs: the component or list of components corresponding to the examples
-            outputs: optionally, provide the component or list of components corresponding to the output of the examples. Required if `cache_examples` is True.
-            fn: optionally, provide the function to run to generate the outputs corresponding to the examples. Required if `cache_examples` is True.
-            cache_examples: if True, caches examples for fast runtime. If True, then `fn` and `outputs` must be provided. If `fn` is a generator function, then the last yielded value will be used as the output.
+            outputs: optionally, provide the component or list of components corresponding to the output of the examples. Required if `cache_examples` is not False.
+            fn: optionally, provide the function to run to generate the outputs corresponding to the examples. Required if `cache_examples` is not False. Also required if `run_on_click` is True.
+            cache_examples: If True, caches examples in the server for fast runtime in examples. If "lazy", then examples are cached (for all users of the app) after their first use (by any user of the app). If None, will use the GRADIO_CACHE_EXAMPLES environment variable, which should be either "true" or "false". In HuggingFace Spaces, this parameter is True (as long as `fn` and `outputs` are also provided). The default option otherwise is False.
+            cache_mode: if "lazy", examples are cached after their first use. If "eager", all examples are cached at app launch. If None, will use the GRADIO_CACHE_MODE environment variable if defined, or default to "eager".
             examples_per_page: how many examples to show per page.
             label: the label to use for the examples component (by default, "Examples")
             elem_id: an optional string that is assigned as the id of this component in the HTML DOM.
             run_on_click: if cache_examples is False, clicking on an example does not run the function when an example is clicked. Set this to True to run the function when an example is clicked. Has no effect if cache_examples is True.
-            preprocess: if True, preprocesses the example input before running the prediction function and caching the output. Only applies if `cache_examples` is True.
-            postprocess: if True, postprocesses the example output after running the prediction function and before caching. Only applies if `cache_examples` is True.
+            preprocess: if True, preprocesses the example input before running the prediction function and caching the output. Only applies if `cache_examples` is not False.
+            postprocess: if True, postprocesses the example output after running the prediction function and before caching. Only applies if `cache_examples` is not False.
             api_name: Defines how the event associated with clicking on the examples appears in the API docs. Can be a string or False. If set to a string, the endpoint will be exposed in the API docs with the given name. If False, the endpoint will not be exposed in the API docs and downstream apps (including those that `gr.load` this app) will not be able to use the example function.
-            batch: If True, then the function should process a batch of inputs, meaning that it should accept a list of input values for each parameter. Used only if cache_examples is True.
+            batch: If True, then the function should process a batch of inputs, meaning that it should accept a list of input values for each parameter. Used only if cache_examples is not False.
+            example_labels: A list of labels for each example. If provided, the length of this list should be the same as the number of examples, and these labels will be used in the UI instead of rendering the example values.
+            visible: If False, the examples component will be hidden in the UI.
         """
         if _initiated_directly:
             warnings.warn(
                 "Please use gr.Examples(...) instead of gr.examples.Examples(...) to create the Examples.",
             )
 
-        if cache_examples and (fn is None or outputs is None):
+        self.cache_examples = False
+        if cache_examples is None:
+            if (
+                os.getenv("GRADIO_CACHE_EXAMPLES", "").lower() in ["true", "lazy"]
+                and fn is not None
+                and outputs is not None
+            ):
+                self.cache_examples = True
+        elif cache_examples == "lazy":
+            warnings.warn(
+                "In future versions of Gradio, the `cache_examples` parameter will no longer accept a value of 'lazy'. To enable lazy caching in "
+                "Gradio, you should set `cache_examples=True`, and `cache_mode='lazy'` instead."
+            )
+            self.cache_examples = "lazy"
+        elif cache_examples in [True, False]:
+            self.cache_examples = cache_examples
+        else:
+            raise ValueError(
+                f"The `cache_examples` parameter should be either True or False, not {cache_examples}"
+            )
+        if self.cache_examples and (fn is None or outputs is None):
             raise ValueError("If caching examples, `fn` and `outputs` must be provided")
 
-        if not isinstance(inputs, list):
+        if (cache_mode_env := os.getenv("GRADIO_CACHE_MODE")) and cache_mode is None:
+            if cache_mode_env.lower() == "eager":
+                cache_mode = "eager"
+            elif cache_mode_env.lower() == "lazy":
+                cache_mode = "lazy"
+            else:
+                cache_mode = "eager"
+                warnings.warn(
+                    "The `GRADIO_CACHE_MODE` environment variable must be either 'eager' or 'lazy'. "
+                    "Defaulting to 'eager'."
+                )
+
+        if self.cache_examples and cache_mode == "lazy":
+            self.cache_examples = "lazy"
+
+        if not isinstance(inputs, Sequence):
             inputs = [inputs]
-        if outputs and not isinstance(outputs, list):
+        if outputs and not isinstance(outputs, Sequence):
             outputs = [outputs]
 
         working_directory = Path().absolute()
@@ -183,135 +229,251 @@ class Examples:
                         pass  # If there are more example components than inputs, ignore. This can sometimes be intentional (e.g. loading from a log file where outputs and timestamps are also logged)
 
         inputs_with_examples = [
-            inp for (inp, keep) in zip(inputs, input_has_examples) if keep
+            inp for (inp, keep) in zip(inputs, input_has_examples, strict=False) if keep
         ]
         non_none_examples = [
-            [ex for (ex, keep) in zip(example, input_has_examples) if keep]
+            [
+                ex
+                for (ex, keep) in zip(example, input_has_examples, strict=False)
+                if keep
+            ]
             for example in examples
         ]
+        if example_labels is not None and len(example_labels) != len(examples):
+            raise ValueError(
+                "If `example_labels` are provided, the length of `example_labels` must be the same as the number of examples."
+            )
 
         self.examples = examples
         self.non_none_examples = non_none_examples
         self.inputs = inputs
+        self.input_has_examples = input_has_examples
         self.inputs_with_examples = inputs_with_examples
         self.outputs = outputs or []
         self.fn = fn
-        self.cache_examples = cache_examples
         self._api_mode = _api_mode
         self.preprocess = preprocess
         self.postprocess = postprocess
         self.api_name: str | Literal[False] = api_name
         self.batch = batch
-
-        with utils.set_directory(working_directory):
-            self.processed_examples = []
-            for example in examples:
-                sub = []
-                for component, sample in zip(inputs, example):
-                    prediction_value = component.postprocess(sample)
-                    if isinstance(prediction_value, (GradioRootModel, GradioModel)):
-                        prediction_value = prediction_value.model_dump()
-                    prediction_value = processing_utils.move_files_to_cache(
-                        prediction_value, component, postprocess=True
-                    )
-                    sub.append(prediction_value)
-                self.processed_examples.append(sub)
-
-        self.non_none_processed_examples = [
-            [ex for (ex, keep) in zip(example, input_has_examples) if keep]
-            for example in self.processed_examples
-        ]
-        if cache_examples:
-            for example in self.examples:
-                if len([ex for ex in example if ex is not None]) != len(self.inputs):
-                    warnings.warn(
-                        "Examples are being cached but not all input components have "
-                        "example values. This may result in an exception being thrown by "
-                        "your function. If you do get an error while caching examples, make "
-                        "sure all of your inputs have example values for all of your examples "
-                        "or you provide default values for those particular parameters in your function."
-                    )
-                    break
+        self.example_labels = example_labels
+        self.working_directory = working_directory
 
         from gradio import components
 
         with utils.set_directory(working_directory):
             self.dataset = components.Dataset(
                 components=inputs_with_examples,
-                samples=non_none_examples,
-                type="index",
+                samples=copy.deepcopy(non_none_examples),
+                type="tuple",
                 label=label,
                 samples_per_page=examples_per_page,
                 elem_id=elem_id,
+                visible=visible,
+                sample_labels=example_labels,
             )
 
+        self.cache_logger = CSVLogger(
+            simplify_file_data=False, verbose=False, dataset_file_name="log.csv"
+        )
         self.cached_folder = utils.get_cache_folder() / str(self.dataset._id)
+        if (
+            os.environ.get("GRADIO_RESET_EXAMPLES_CACHE") == "True"
+            and self.cached_folder.exists()
+        ):
+            shutil.rmtree(self.cached_folder)
         self.cached_file = Path(self.cached_folder) / "log.csv"
-        self.cache_examples = cache_examples
+        self.cached_indices_file = Path(self.cached_folder) / "indices.csv"
         self.run_on_click = run_on_click
+        self.cache_event: Dependency | None = None
+        self.non_none_processed_examples = UnhashableKeyDict()
+
+        if self.dataset.samples:
+            for index, example in enumerate(self.non_none_examples):
+                self.non_none_processed_examples[self.dataset.samples[index]] = (
+                    self._get_processed_example(example)
+                )
+
+        if self.cache_examples == "lazy":
+            print(
+                f"Will cache examples in '{utils.abspath(self.cached_folder)}' directory at first use.",
+                end="",
+            )
+            if Path(self.cached_file).exists():
+                print(
+                    "If method or examples have changed since last caching, delete this folder to reset cache."
+                )
+            print("\n")
+
+    def _get_processed_example(self, example):
+        """
+        This function is used to get the post-processed example values, ready to be used
+        in the frontend for each input component. For example, if the input components are
+        image components, the post-processed example values will be the a list of ImageData dictionaries
+        with the path, url, size, mime_type, orig_name, and is_stream keys. For any input components
+        that should be skipped (b/c they are None for all samples), they will simply be absent
+        from the returned list
+
+        Parameters:
+            example: a list of example values for each input component, excluding those components
+            that have all None values
+        """
+        if example in self.non_none_processed_examples:
+            return self.non_none_processed_examples[example]
+        with utils.set_directory(self.working_directory):
+            sub = []
+            for component, sample in zip(
+                self.inputs_with_examples, example, strict=False
+            ):
+                prediction_value = component.postprocess(sample)
+                if isinstance(prediction_value, (GradioRootModel, GradioModel)):
+                    prediction_value = prediction_value.model_dump()
+                prediction_value = processing_utils.move_files_to_cache(
+                    prediction_value,
+                    component,
+                    postprocess=True,
+                )
+                sub.append(prediction_value)
+        return sub
 
     def create(self) -> None:
-        """Caches the examples if self.cache_examples is True and creates the Dataset
-        component to hold the examples"""
+        """Creates the Dataset component to hold the examples"""
+        blocks_config = get_blocks_context()
+        self.root_block = Context.root_block or (
+            blocks_config.root_block if blocks_config else None
+        )
+        if blocks_config:
+            if self.root_block:
+                self.root_block.extra_startup_events.append(self._start_caching)
 
-        async def load_example(example_id):
-            processed_example = self.non_none_processed_examples[example_id]
-            if len(self.inputs_with_examples) == 1:
-                return update(
-                    value=processed_example[0], **self.dataset.component_props[0]
+            if self.cache_examples:
+
+                def load_example_with_output(example_tuple):
+                    example_id, example_value = example_tuple
+                    processed_example = self._get_processed_example(
+                        example_value
+                    ) + self.load_from_cache(example_id)
+                    return utils.resolve_singleton(processed_example)
+
+                self.cache_event = self.load_input_event = self.dataset.click(
+                    load_example_with_output,
+                    inputs=[self.dataset],
+                    outputs=self.inputs + self.outputs,  # type: ignore
+                    show_progress="hidden",
+                    postprocess=False,
+                    queue=False,
+                    api_name=self.api_name,
+                    show_api=False,
                 )
-            return [
-                update(value=processed_example[i], **self.dataset.component_props[i])
-                for i in range(len(self.inputs_with_examples))
-            ]
+            else:
 
-        if Context.root_block:
-            self.load_input_event = self.dataset.click(
-                load_example,
-                inputs=[self.dataset],
-                outputs=self.inputs_with_examples,  # type: ignore
-                show_progress="hidden",
-                postprocess=False,
-                queue=False,
-                api_name=self.api_name,
-                show_api=False,
-            )
-            if self.run_on_click and not self.cache_examples:
-                if self.fn is None:
-                    raise ValueError("Cannot run_on_click if no function is provided")
-                self.load_input_event.then(
-                    self.fn,
-                    inputs=self.inputs,  # type: ignore
-                    outputs=self.outputs,  # type: ignore
+                def load_example(example_tuple):
+                    _, example_value = example_tuple
+                    processed_example = self._get_processed_example(example_value)
+                    if len(self.inputs_with_examples) == 1:
+                        return update(
+                            value=processed_example[0],
+                            **self.dataset.component_props[0],  # type: ignore
+                        )
+                    return [
+                        update(
+                            value=processed_example[i],
+                            **self.dataset.component_props[i],  # type: ignore
+                        )
+                        for i in range(len(self.inputs_with_examples))
+                    ]
+
+                self.load_input_event = self.dataset.click(
+                    load_example,
+                    inputs=[self.dataset],
+                    outputs=self.inputs_with_examples,
+                    show_progress="hidden",
+                    postprocess=False,
+                    queue=False,
+                    api_name=self.api_name,
                     show_api=False,
                 )
 
+                if self.run_on_click:
+                    if self.fn is None:
+                        raise ValueError(
+                            "Cannot run_on_click if no function is provided"
+                        )
+                    self.load_input_event.then(
+                        self.fn,
+                        inputs=self.inputs,
+                        outputs=self.outputs,
+                        show_api=False,
+                    )
+        else:
+            warnings.warn(
+                f"If an Examples object is created outside a Blocks Context, make sure to call `examples.dataset.render()`{'and `examples.create()`' if self.cache_examples else ''} to render the examples in the interface."
+            )
+
+    async def _postprocess_output(self, output) -> list:
+        """
+        This is a way that we can postprocess the data manually, since we set postprocess=False in the lazy_cache
+        event handler. The reason we did that is because we don't want to postprocess data if we are loading from
+        the cache, since that has already been postprocessed. We postprocess this data manually if we are calling
+        the function using the _handle_callable_as_generator() method.
+        """
+        import gradio as gr
+
+        with gr.Blocks() as demo:
+            [output.render() for output in self.outputs]
+            demo.load(self.fn, self.inputs, self.outputs)
+        demo.unrender()
+        return await demo.postprocess_data(demo.default_config.fns[0], output, None)
+
+    def _get_cached_index_if_cached(self, example_index) -> int | None:
+        if Path(self.cached_indices_file).exists():
+            with open(self.cached_indices_file) as f:
+                cached_indices = [int(line.strip()) for line in f]
+            if example_index in cached_indices:
+                cached_index = cached_indices.index(example_index)
+                return cached_index
+        return None
+
+    async def _start_caching(self):
         if self.cache_examples:
+            for example in self.examples:
+                if len([ex for ex in example if ex is not None]) != len(self.inputs):
+                    warnings.warn(
+                        "Examples will be cached but not all input components have "
+                        "example values. This may result in an exception being thrown by "
+                        "your function. If you do get an error while caching examples, make "
+                        "sure all of your inputs have example values for all of your examples "
+                        "or you provide default values for those particular parameters in your function."
+                    )
+                    break
+        if self.cache_examples is True:
             if wasm_utils.IS_WASM:
                 # In the Wasm mode, the `threading` module is not supported,
                 # so `client_utils.synchronize_async` is also not available.
                 # And `self.cache()` should be waited for to complete before this method returns,
                 # (otherwise, an error "Cannot cache examples if not in a Blocks context" will be raised anyway)
                 # so `eventloop.create_task(self.cache())` is also not an option.
-                raise wasm_utils.WasmUnsupportedError(
-                    "Caching examples is not supported in the Wasm mode."
+                warnings.warn(
+                    "Setting `cache_examples=True` is not supported in the Wasm mode. You can set `cache_examples='lazy'` to cache examples after first use."
                 )
-            client_utils.synchronize_async(self.cache)
+            else:
+                await self.cache()
 
-    async def cache(self) -> None:
+    async def cache(self, example_id: int | None = None) -> None:
         """
-        Caches all of the examples so that their predictions can be shown immediately.
+        Caches examples so that their predictions can be shown immediately.
+        Parameters:
+            example_id: The id of the example to process (zero-indexed). If None, all examples are cached.
         """
-        if Context.root_block is None:
-            raise ValueError("Cannot cache examples if not in a Blocks context")
-        if Path(self.cached_file).exists():
+        if self.root_block is None:
+            raise Error("Cannot cache examples if not in a Blocks context.")
+        if Path(self.cached_file).exists() and example_id is None:
             print(
                 f"Using cache from '{utils.abspath(self.cached_folder)}' directory. If method or examples have changed since last caching, delete this folder to clear cache.\n"
             )
         else:
             print(f"Caching examples at: '{utils.abspath(self.cached_folder)}'")
-            cache_logger = CSVLogger()
-
+            self.cache_logger.setup(self.outputs, self.cached_folder)
             generated_values = []
             if inspect.isgeneratorfunction(self.fn):
 
@@ -339,77 +501,67 @@ class Examples:
             # create a fake dependency to process the examples and get the predictions
             from gradio.events import EventListenerMethod
 
-            dependency, fn_index = Context.root_block.set_event_trigger(
+            _, fn_index = self.root_block.default_config.set_event_trigger(
                 [EventListenerMethod(Context.root_block, "load")],
                 fn=fn,
-                inputs=self.inputs_with_examples,  # type: ignore
-                outputs=self.outputs,  # type: ignore
+                inputs=self.inputs,
+                outputs=self.outputs,
                 preprocess=self.preprocess and not self._api_mode,
                 postprocess=self.postprocess and not self._api_mode,
                 batch=self.batch,
             )
 
-            assert self.outputs is not None
-            cache_logger.setup(self.outputs, self.cached_folder)
-            for example_id, _ in enumerate(self.examples):
-                print(f"Caching example {example_id + 1}/{len(self.examples)}")
-                processed_input = self.processed_examples[example_id]
+            if self.outputs is None:
+                raise ValueError("self.outputs is missing")
+            for i, example in enumerate(self.non_none_examples):
+                if example_id is not None and i != example_id:
+                    continue
+                processed_input = self._get_processed_example(example)
+                for index, keep in enumerate(self.input_has_examples):
+                    if not keep:
+                        processed_input.insert(index, None)
                 if self.batch:
                     processed_input = [[value] for value in processed_input]
                 with utils.MatplotlibBackendMananger():
-                    prediction = await Context.root_block.process_api(
-                        fn_index=fn_index,
+                    prediction = await self.root_block.process_api(
+                        block_fn=self.root_block.default_config.fns[fn_index],
                         inputs=processed_input,
                         request=None,
                     )
                 output = prediction["data"]
                 if len(generated_values):
-                    output = merge_generated_values_into_output(
+                    output = await merge_generated_values_into_output(
                         self.outputs, generated_values, output
                     )
-
                 if self.batch:
                     output = [value[0] for value in output]
-                cache_logger.flag(output)
+                self.cache_logger.flag(output)
             # Remove the "fake_event" to prevent bugs in loading interfaces from spaces
-            Context.root_block.dependencies.remove(dependency)
-            Context.root_block.fns.pop(fn_index)
-
-        # Remove the original load_input_event and replace it with one that
-        # also populates the input. We do it this way to to allow the cache()
-        # method to be called independently of the create() method
-        index = Context.root_block.dependencies.index(self.load_input_event)
-        Context.root_block.dependencies.pop(index)
-        Context.root_block.fns.pop(index)
-
-        def load_example(example_id):
-            processed_example = self.non_none_processed_examples[
-                example_id
-            ] + self.load_from_cache(example_id)
-            return utils.resolve_singleton(processed_example)
-
-        self.load_input_event = self.dataset.click(
-            load_example,
-            inputs=[self.dataset],
-            outputs=self.inputs_with_examples + self.outputs,  # type: ignore
-            show_progress="hidden",
-            postprocess=False,
-            queue=False,
-            api_name=self.api_name,
-            show_api=False,
-        )
+            self.root_block.default_config.fns.pop(fn_index)
 
     def load_from_cache(self, example_id: int) -> list[Any]:
         """Loads a particular cached example for the interface.
         Parameters:
             example_id: The id of the example to process (zero-indexed).
         """
+        if self.cache_examples == "lazy":
+            if (cached_index := self._get_cached_index_if_cached(example_id)) is None:
+                client_utils.synchronize_async(self.cache, example_id)
+                with open(self.cached_indices_file, "a") as f:
+                    f.write(f"{example_id}\n")
+                with open(self.cached_indices_file) as f:
+                    example_id = len(f.readlines()) - 1
+            else:
+                example_id = cached_index
+
         with open(self.cached_file, encoding="utf-8") as cache:
             examples = list(csv.reader(cache))
+
         example = examples[example_id + 1]  # +1 to adjust for header
         output = []
-        assert self.outputs is not None
-        for component, value in zip(self.outputs, example):
+        if self.outputs is None:
+            raise ValueError("self.outputs is missing")
+        for component, value in zip(self.outputs, example, strict=False):
             value_to_use = value
             try:
                 value_as_dict = ast.literal_eval(value)
@@ -420,47 +572,40 @@ class Examples:
                     component, components.File
                 ):
                     value_to_use = value_as_dict
-                assert utils.is_update(value_as_dict)
+                if not utils.is_prop_update(value_as_dict):
+                    raise TypeError("value wasn't an update")  # caught below
                 output.append(value_as_dict)
-            except (ValueError, TypeError, SyntaxError, AssertionError):
-                output.append(
-                    component.read_from_flag(
-                        value_to_use,
-                        self.cached_folder,
-                    )
-                )
+            except (ValueError, TypeError, SyntaxError):
+                output.append(component.read_from_flag(value_to_use))
         return output
 
 
-def merge_generated_values_into_output(
-    components: list[Component], generated_values: list, output: list
+async def merge_generated_values_into_output(
+    components: Sequence[Component], generated_values: list, output: list
 ):
     from gradio.components.base import StreamingOutput
 
     for output_index, output_component in enumerate(components):
         if isinstance(output_component, StreamingOutput) and output_component.streaming:
             binary_chunks = []
+            desired_output_format = None
             for i, chunk in enumerate(generated_values):
                 if len(components) > 1:
                     chunk = chunk[output_index]
                 processed_chunk = output_component.postprocess(chunk)
                 if isinstance(processed_chunk, (GradioModel, GradioRootModel)):
                     processed_chunk = processed_chunk.model_dump()
-                binary_chunks.append(
-                    output_component.stream_output(processed_chunk, "", i == 0)[0]
+                stream_chunk = await output_component.stream_output(
+                    processed_chunk, "", i == 0
                 )
-            binary_data = b"".join(binary_chunks)
-            tempdir = os.environ.get("GRADIO_TEMP_DIR") or str(
-                Path(tempfile.gettempdir()) / "gradio"
+                if i == 0 and (orig_name := stream_chunk[1].get("orig_name")):
+                    desired_output_format = Path(orig_name).suffix[1:]
+                if stream_chunk[0]:
+                    binary_chunks.append(stream_chunk[0]["data"])
+            combined_output = await output_component.combine_stream(
+                binary_chunks, desired_output_format=desired_output_format
             )
-            os.makedirs(tempdir, exist_ok=True)
-            temp_file = tempfile.NamedTemporaryFile(dir=tempdir, delete=False)
-            with open(temp_file.name, "wb") as f:
-                f.write(binary_data)
-
-            output[output_index] = {
-                "path": temp_file.name,
-            }
+            output[output_index] = combined_output.model_dump()
 
     return output
 
@@ -502,7 +647,6 @@ class Progress(Iterable):
                 time.sleep(0.1)
             return x
         gr.Interface(my_function, gr.Textbox(), gr.Textbox()).queue().launch()
-    Demos: progress
     """
 
     def __init__(
@@ -601,7 +745,7 @@ class Progress(Iterable):
                 self.iterables.append(new_iterable)
                 callback(self.iterables)
                 return self
-            length = len(iterable) if hasattr(iterable, "__len__") else None  # type: ignore
+            length = len(iterable) if hasattr(iterable, "__len__") else total  # type: ignore
             self.iterables.append(
                 TrackedIterable(iter(iterable), 0, length, desc, unit, _tqdm)
             )
@@ -752,18 +896,14 @@ def special_args(
             progress_index = i
             if inputs is not None:
                 inputs.insert(i, param.default)
-        elif type_hint == routes.Request:
+        elif type_hint in (routes.Request, Optional[routes.Request]):
             if inputs is not None:
                 inputs.insert(i, request)
-        elif (
-            type_hint == Optional[oauth.OAuthProfile]
-            or type_hint == oauth.OAuthProfile
-            or type_hint == Optional[oauth.OAuthToken]
-            or type_hint == oauth.OAuthToken
-            # Note: "OAuthProfile | None" is equals to Optional[OAuthProfile] in Python
-            #       => it is automatically handled as well by the above condition
-            #       (adding explicit "OAuthProfile | None" would break in Python3.9)
-            #       (same for "OAuthToken")
+        elif type_hint in (
+            oauth.OAuthProfile | None,
+            oauth.OAuthToken | None,
+            oauth.OAuthProfile,
+            oauth.OAuthToken,
         ):
             if inputs is not None:
                 # Retrieve session from gr.Request, if it exists (i.e. if user is logged in)
@@ -776,10 +916,7 @@ def special_args(
                 )
 
                 # Inject user profile
-                if (
-                    type_hint == Optional[oauth.OAuthProfile]
-                    or type_hint == oauth.OAuthProfile
-                ):
+                if type_hint in (Optional[oauth.OAuthProfile], oauth.OAuthProfile):
                     oauth_profile = (
                         session["oauth_info"]["userinfo"]
                         if "oauth_info" in session
@@ -794,13 +931,8 @@ def special_args(
                     inputs.insert(i, oauth_profile)
 
                 # Inject user token
-                elif (
-                    type_hint == Optional[oauth.OAuthToken]
-                    or type_hint == oauth.OAuthToken
-                ):
-                    oauth_info = (
-                        session["oauth_info"] if "oauth_info" in session else None
-                    )
+                elif type_hint in (Optional[oauth.OAuthToken], oauth.OAuthToken):
+                    oauth_info = session.get("oauth_info", None)
                     oauth_token = (
                         oauth.OAuthToken(
                             token=oauth_info["access_token"],
@@ -822,6 +954,7 @@ def special_args(
         ):
             event_data_index = i
             if inputs is not None and event_data is not None:
+                processing_utils.check_all_files_in_cache(event_data._data)
                 inputs.insert(i, type_hint(event_data.target, event_data._data))
         elif (
             param.default is not param.empty and inputs is not None and len(inputs) <= i
@@ -843,10 +976,16 @@ def update(
     elem_id: str | None = None,
     elem_classes: list[str] | str | None = None,
     visible: bool | None = None,
-    **kwargs,
-) -> dict:
+    **kwargs: Any,
+) -> dict[str, Any]:
     """
-    Updates a component's properties. When a function passed into a Gradio Interface or a Blocks events returns a value, it typically updates the value of the output component. But it is also possible to update the *properties* of an output component (such as the number of lines of a `Textbox` or the visibility of an `Row`) by returning a component and passing in the parameters to update in the constructor of the component. Alternatively, you can return `gr.update(...)` with any arbitrary parameters to update. (This is useful as a shorthand or if the same function can be called with different components to update.)
+    Updates a component's properties. When a function passed into a Gradio Interface or a Blocks
+    events returns a value, it typically updates the value of the output component. But it is also possible
+    to update the *properties* of an output component (such as the number of lines of a `Textbox` or
+    the visibility of an `Row`) by returning a component and passing in the parameters to update in
+    the constructor of the component. Alternatively, you can return `gr.update(...)` with any arbitrary
+    parameters to update. (This is useful as a shorthand or if the same function can be called with different
+    components to update.) This method does not work with the `gr.State` component.
 
     Parameters:
         elem_id: Use this to update the id of the component in the HTML DOM
@@ -871,249 +1010,24 @@ def update(
     return kwargs
 
 
+@document()
 def skip() -> dict:
+    """
+    A special function that can be returned from a Gradio function to skip updating the output component. This may be useful when
+    you want to update the output component conditionally, and in some cases, you want to skip updating the output component.
+    If you have multiple output components, you can return `gr.skip()` as part of a tuple to skip updating a specific output component,
+    or you can return a single `gr.skip()` to skip updating all output components.
+    """
     return {"__type__": "update"}
 
 
-@document()
-def make_waveform(
-    audio: str | tuple[int, np.ndarray],
-    *,
-    bg_color: str = "#f3f4f6",
-    bg_image: str | None = None,
-    fg_alpha: float = 0.75,
-    bars_color: str | tuple[str, str] = ("#fbbf24", "#ea580c"),
-    bar_count: int = 50,
-    bar_width: float = 0.6,
-    animate: bool = False,
-) -> str:
-    """
-    Generates a waveform video from an audio file. Useful for creating an easy to share audio visualization. The output should be passed into a `gr.Video` component.
-    Parameters:
-        audio: Audio file path or tuple of (sample_rate, audio_data)
-        bg_color: Background color of waveform (ignored if bg_image is provided)
-        bg_image: Background image of waveform
-        fg_alpha: Opacity of foreground waveform
-        bars_color: Color of waveform bars. Can be a single color or a tuple of (start_color, end_color) of gradient
-        bar_count: Number of bars in waveform
-        bar_width: Width of bars in waveform. 1 represents full width, 0.5 represents half width, etc.
-        animate: If true, the audio waveform overlay will be animated, if false, it will be static.
-    Returns:
-        A filepath to the output video in mp4 format.
-    """
-    import matplotlib.pyplot as plt
-    from matplotlib.animation import FuncAnimation
-
-    if isinstance(audio, str):
-        audio_file = audio
-        audio = processing_utils.audio_from_file(audio)
-    else:
-        tmp_wav = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
-        processing_utils.audio_to_file(audio[0], audio[1], tmp_wav.name, format="wav")
-        audio_file = tmp_wav.name
-
-    if not os.path.isfile(audio_file):
-        raise ValueError("Audio file not found.")
-
-    ffmpeg = shutil.which("ffmpeg")
-    if not ffmpeg:
-        raise RuntimeError("ffmpeg not found.")
-
-    duration = round(len(audio[1]) / audio[0], 4)
-
-    # Helper methods to create waveform
-    def hex_to_rgb(hex_str):
-        return [int(hex_str[i : i + 2], 16) for i in range(1, 6, 2)]
-
-    def get_color_gradient(c1, c2, n):
-        assert n > 1
-        c1_rgb = np.array(hex_to_rgb(c1)) / 255
-        c2_rgb = np.array(hex_to_rgb(c2)) / 255
-        mix_pcts = [x / (n - 1) for x in range(n)]
-        rgb_colors = [((1 - mix) * c1_rgb + (mix * c2_rgb)) for mix in mix_pcts]
-        return [
-            "#" + "".join(f"{int(round(val * 255)):02x}" for val in item)
-            for item in rgb_colors
-        ]
-
-    # Reshape audio to have a fixed number of bars
-    samples = audio[1]
-    if len(samples.shape) > 1:
-        samples = np.mean(samples, 1)
-    bins_to_pad = bar_count - (len(samples) % bar_count)
-    samples = np.pad(samples, [(0, bins_to_pad)])
-    samples = np.reshape(samples, (bar_count, -1))
-    samples = np.abs(samples)
-    samples = np.max(samples, 1)
-
-    with utils.MatplotlibBackendMananger():
-        plt.clf()
-        # Plot waveform
-        color = (
-            bars_color
-            if isinstance(bars_color, str)
-            else get_color_gradient(bars_color[0], bars_color[1], bar_count)
-        )
-
-        if animate:
-            fig = plt.figure(figsize=(5, 1), dpi=200, frameon=False)
-            fig.subplots_adjust(left=0, bottom=0, right=1, top=1)
-        plt.axis("off")
-        plt.margins(x=0)
-
-        bar_alpha = fg_alpha if animate else 1.0
-        barcollection = plt.bar(
-            np.arange(0, bar_count),
-            samples * 2,
-            bottom=(-1 * samples),
-            width=bar_width,
-            color=color,
-            alpha=bar_alpha,
-        )
-
-        tmp_img = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
-
-        savefig_kwargs: dict[str, Any] = {"bbox_inches": "tight"}
-        if bg_image is not None:
-            savefig_kwargs["transparent"] = True
-            if animate:
-                savefig_kwargs["facecolor"] = "none"
-        else:
-            savefig_kwargs["facecolor"] = bg_color
-        plt.savefig(tmp_img.name, **savefig_kwargs)
-
-        if not animate:
-            waveform_img = PIL.Image.open(tmp_img.name)
-            waveform_img = waveform_img.resize((1000, 400))
-
-            # Composite waveform with background image
-            if bg_image is not None:
-                waveform_array = np.array(waveform_img)
-                waveform_array[:, :, 3] = waveform_array[:, :, 3] * fg_alpha
-                waveform_img = PIL.Image.fromarray(waveform_array)
-
-                bg_img = PIL.Image.open(bg_image)
-                waveform_width, waveform_height = waveform_img.size
-                bg_width, bg_height = bg_img.size
-                if waveform_width != bg_width:
-                    bg_img = bg_img.resize(
-                        (
-                            waveform_width,
-                            2 * int(bg_height * waveform_width / bg_width / 2),
-                        )
-                    )
-                    bg_width, bg_height = bg_img.size
-                composite_height = max(bg_height, waveform_height)
-                composite = PIL.Image.new(
-                    "RGBA", (waveform_width, composite_height), "#FFFFFF"
-                )
-                composite.paste(bg_img, (0, composite_height - bg_height))
-                composite.paste(
-                    waveform_img, (0, composite_height - waveform_height), waveform_img
-                )
-                composite.save(tmp_img.name)
-                img_width, img_height = composite.size
-            else:
-                img_width, img_height = waveform_img.size
-                waveform_img.save(tmp_img.name)
-        else:
-
-            def _animate(_):
-                for idx, b in enumerate(barcollection):
-                    rand_height = np.random.uniform(0.8, 1.2)
-                    b.set_height(samples[idx] * rand_height * 2)
-                    b.set_y((-rand_height * samples)[idx])
-
-            frames = int(duration * 10)
-            anim = FuncAnimation(
-                fig,  # type: ignore
-                _animate,
-                repeat=False,
-                blit=False,
-                frames=frames,
-                interval=100,
-            )
-            anim.save(
-                tmp_img.name,
-                writer="pillow",
-                fps=10,
-                codec="png",
-                savefig_kwargs=savefig_kwargs,
-            )
-
-    # Convert waveform to video with ffmpeg
-    output_mp4 = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
-
-    if animate and bg_image is not None:
-        ffmpeg_cmd = [
-            ffmpeg,
-            "-loop",
-            "1",
-            "-i",
-            bg_image,
-            "-i",
-            tmp_img.name,
-            "-i",
-            audio_file,
-            "-filter_complex",
-            "[0:v]scale=w=trunc(iw/2)*2:h=trunc(ih/2)*2[bg];[1:v]format=rgba,colorchannelmixer=aa=1.0[ov];[bg][ov]overlay=(main_w-overlay_w*0.9)/2:main_h-overlay_h*0.9/2[output]",
-            "-t",
-            str(duration),
-            "-map",
-            "[output]",
-            "-map",
-            "2:a",
-            "-c:v",
-            "libx264",
-            "-c:a",
-            "aac",
-            "-shortest",
-            "-y",
-            output_mp4.name,
-        ]
-    elif animate and bg_image is None:
-        ffmpeg_cmd = [
-            ffmpeg,
-            "-i",
-            tmp_img.name,
-            "-i",
-            audio_file,
-            "-filter_complex",
-            "[0:v][1:a]concat=n=1:v=1:a=1[v];[v]scale=1000:400,format=yuv420p[v_scaled]",
-            "-map",
-            "[v_scaled]",
-            "-map",
-            "1:a",
-            "-c:v",
-            "libx264",
-            "-c:a",
-            "aac",
-            "-shortest",
-            "-y",
-            output_mp4.name,
-        ]
-    else:
-        ffmpeg_cmd = [
-            ffmpeg,
-            "-loop",
-            "1",
-            "-i",
-            tmp_img.name,
-            "-i",
-            audio_file,
-            "-vf",
-            f"color=c=#FFFFFF77:s={img_width}x{img_height}[bar];[0][bar]overlay=-w+(w/{duration})*t:H-h:shortest=1",  # type: ignore
-            "-t",
-            str(duration),
-            "-y",
-            output_mp4.name,
-        ]
-
-    subprocess.check_call(ffmpeg_cmd)
-    return output_mp4.name
-
-
-def log_message(message: str, level: Literal["info", "warning"] = "info"):
+def log_message(
+    message: str,
+    title: str,
+    level: Literal["info", "warning", "success"] = "info",
+    duration: float | None = 10,
+    visible: bool = True,
+):
     from gradio.context import LocalContext
 
     blocks = LocalContext.blocks.get()
@@ -1121,24 +1035,36 @@ def log_message(message: str, level: Literal["info", "warning"] = "info"):
     if blocks is None or event_id is None:
         # Function called outside of Gradio if blocks is None
         # Or from /api/predict if event_id is None
-        if level == "info":
+        if level in ("info", "success"):
             print(message)
         elif level == "warning":
             warnings.warn(message)
         return
-    blocks._queue.log_message(event_id=event_id, log=message, level=level)
+    blocks._queue.log_message(
+        event_id=event_id,
+        log=message,
+        title=title,
+        level=level,
+        duration=duration,
+        visible=visible,
+    )
 
 
-set_documentation_group("modals")
-
-
-@document()
-def Warning(message: str = "Warning issued."):  # noqa: N802
+@document(documentation_group="modals")
+def Warning(  # noqa: N802
+    message: str = "Warning issued.",
+    duration: float | None = 10,
+    visible: bool = True,
+    title: str = "Warning",
+):
     """
     This function allows you to pass custom warning messages to the user. You can do so simply by writing `gr.Warning('message here')` in your function, and when that line is executed the custom message will appear in a modal on the demo. The modal is yellow by default and has the heading: "Warning." Queue must be enabled for this behavior; otherwise, the warning will be printed to the console using the `warnings` library.
     Demos: blocks_chained_events
     Parameters:
-        message: The warning message to be displayed to the user.
+        message: The warning message to be displayed to the user. Can be HTML, which will be rendered in the modal.
+        duration: The duration in seconds that the warning message should be displayed for. If None or 0, the message will be displayed indefinitely until the user closes it.
+        visible: Whether the error message should be displayed in the UI.
+        title: The title to be displayed to the user at the top of the modal.
     Example:
         import gradio as gr
         def hello_world():
@@ -1147,18 +1073,28 @@ def Warning(message: str = "Warning issued."):  # noqa: N802
         with gr.Blocks() as demo:
             md = gr.Markdown()
             demo.load(hello_world, inputs=None, outputs=[md])
-        demo.queue().launch()
+        demo.launch()
     """
-    log_message(message, level="warning")
+    log_message(
+        message, title=title, level="warning", duration=duration, visible=visible
+    )
 
 
-@document()
-def Info(message: str = "Info issued."):  # noqa: N802
+@document(documentation_group="modals")
+def Info(  # noqa: N802
+    message: str = "Info issued.",
+    duration: float | None = 10,
+    visible: bool = True,
+    title: str = "Info",
+):
     """
     This function allows you to pass custom info messages to the user. You can do so simply by writing `gr.Info('message here')` in your function, and when that line is executed the custom message will appear in a modal on the demo. The modal is gray by default and has the heading: "Info." Queue must be enabled for this behavior; otherwise, the message will be printed to the console.
     Demos: blocks_chained_events
     Parameters:
-        message: The info message to be displayed to the user.
+        message: The info message to be displayed to the user. Can be HTML, which will be rendered in the modal.
+        duration: The duration in seconds that the info message should be displayed for. If None or 0, the message will be displayed indefinitely until the user closes it.
+        visible: Whether the error message should be displayed in the UI.
+        title: The title to be displayed to the user at the top of the modal.
     Example:
         import gradio as gr
         def hello_world():
@@ -1167,6 +1103,34 @@ def Info(message: str = "Info issued."):  # noqa: N802
         with gr.Blocks() as demo:
             md = gr.Markdown()
             demo.load(hello_world, inputs=None, outputs=[md])
-        demo.queue().launch()
+        demo.launch()
     """
-    log_message(message, level="info")
+    log_message(message, title=title, level="info", duration=duration, visible=visible)
+
+
+@document(documentation_group="modals")
+def Success(  # noqa: N802
+    message: str = "Success.",
+    duration: float | None = 10,
+    visible: bool = True,
+    title: str = "Success",
+):
+    """
+    This function allows you to pass custom success messages to the user. You can do so simply by writing `gr.Success('message here')` in your function, and when that line is executed the custom message will appear in a modal on the demo. The modal is green by default and has the heading: "Success." Queue must be enabled for this behavior; otherwise, the message will be printed to the console.
+    Parameters:
+        message: The success message to be displayed to the user. Can be HTML, which will be rendered in the modal.
+        duration: The duration in seconds that the success message should be displayed for. If None or 0, the message will be displayed indefinitely until the user closes it.
+        visible: Whether the error message should be displayed in the UI.
+        title: The title to be displayed to the user at the top of the modal.
+    Example:
+        def hello_world():
+            gr.Success('Operation completed successfully!')
+            return "hello world"
+        with gr.Blocks() as demo:
+            md = gr.Markdown()
+            demo.load(hello_world, inputs=None, outputs=[md])
+        demo.launch()
+    """
+    log_message(
+        message, title=title, level="success", duration=duration, visible=visible
+    )

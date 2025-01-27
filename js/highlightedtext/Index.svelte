@@ -16,6 +16,7 @@
 	export let gradio: Gradio<{
 		select: SelectData;
 		change: never;
+		clear_status: LoadingStatus;
 	}>;
 	export let elem_id = "";
 	export let elem_classes: string[] = [];
@@ -26,6 +27,7 @@
 	}[];
 	let old_value: typeof value;
 	export let show_legend: boolean;
+	export let show_inline_category: boolean;
 	export let color_map: Record<string, string> = {};
 	export let label = gradio.i18n("highlighted_text.highlighted_text");
 	export let container = true;
@@ -34,6 +36,7 @@
 	export let _selectable = false;
 	export let combine_adjacent = false;
 	export let interactive: boolean;
+	export let show_label = true;
 
 	$: if (!color_map && Object.keys(color_map).length) {
 		color_map = color_map;
@@ -69,13 +72,15 @@
 			autoscroll={gradio.autoscroll}
 			i18n={gradio.i18n}
 			{...loading_status}
+			on:clear_status={() => gradio.dispatch("clear_status", loading_status)}
 		/>
-		{#if label}
+		{#if label && show_label}
 			<BlockLabel
 				Icon={TextHighlight}
 				{label}
 				float={false}
 				disable={container === false}
+				{show_label}
 			/>
 		{/if}
 
@@ -85,6 +90,7 @@
 				selectable={_selectable}
 				{value}
 				{show_legend}
+				{show_inline_category}
 				{color_map}
 			/>
 		{:else}
@@ -109,13 +115,15 @@
 			autoscroll={gradio.autoscroll}
 			{...loading_status}
 			i18n={gradio.i18n}
+			on:clear_status={() => gradio.dispatch("clear_status", loading_status)}
 		/>
-		{#if label}
+		{#if label && show_label}
 			<BlockLabel
 				Icon={TextHighlight}
 				{label}
 				float={false}
 				disable={container === false}
+				{show_label}
 			/>
 		{/if}
 
@@ -128,7 +136,7 @@
 				{color_map}
 			/>
 		{:else}
-			<Empty>
+			<Empty size="small" unpadded_box={true}>
 				<TextHighlight />
 			</Empty>
 		{/if}

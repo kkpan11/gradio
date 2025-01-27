@@ -1,18 +1,20 @@
 <script lang="ts">
-	import { getContext, onMount, tick } from "svelte";
+	import { getContext, onMount, tick, createEventDispatcher } from "svelte";
 	import { type ToolContext, TOOL_KEY } from "./Tools.svelte";
 	import { type EditorContext, EDITOR_KEY } from "../ImageEditor.svelte";
 	import {
-		Upload as UploadIcon,
+		Image as ImageIcon,
 		Webcam as WebcamIcon,
 		ImagePaste
 	} from "@gradio/icons";
 	import { Upload } from "@gradio/upload";
 	import { Webcam } from "@gradio/image";
 	import { type I18nFormatter } from "@gradio/utils";
+	import { default as IconButton } from "./IconButton.svelte";
+	import { type Client } from "@gradio/client";
 
 	import { add_bg_color, add_bg_image } from "./sources";
-	import type { FileData, normalise_file } from "@gradio/client";
+	import type { FileData } from "@gradio/client";
 
 	export let background_file: FileData | null;
 	export let root: string;
@@ -23,22 +25,33 @@
 	];
 	export let mirror_webcam = true;
 	export let i18n: I18nFormatter;
+	export let upload: Client["upload"];
+	export let stream_handler: Client["stream"];
+	export let dragging: boolean;
+	export let canvas_size: [number, number];
+	export let fixed_canvas = false;
 
-	const { active_tool, register_tool } = getContext<ToolContext>(TOOL_KEY);
+	const { active_tool } = getContext<ToolContext>(TOOL_KEY);
 	const { pixi, dimensions, register_context, reset, editor_box } =
 		getContext<EditorContext>(EDITOR_KEY);
 
-	let active_mode: "webcam" | "color" | null = null;
+	export let active_mode: "webcam" | "color" | null = null;
 	let background: Blob | File | null;
+
+	const dispatch = createEventDispatcher<{
+		upload: never;
+	}>();
 
 	const sources_meta = {
 		upload: {
-			icon: UploadIcon,
+			icon: ImageIcon,
 			label: "Upload",
 			order: 0,
 			id: "bg_upload",
 			cb() {
-				upload.open_file_upload();
+				upload_component.open_file_upload();
+
+				$active_tool = "bg";
 			}
 		},
 		webcam: {
@@ -48,6 +61,7 @@
 			id: "bg_webcam",
 			cb() {
 				active_mode = "webcam";
+				$active_tool = "bg";
 			}
 		},
 		clipboard: {
@@ -57,6 +71,7 @@
 			id: "bg_clipboard",
 			cb() {
 				process_clipboard();
+				$active_tool = null;
 			}
 		}
 	} as const;
@@ -65,7 +80,7 @@
 		.map((src) => sources_meta[src])
 		.sort((a, b) => a.order - b.order);
 
-	let upload: Upload;
+	let upload_component: Upload;
 
 	async function process_clipboard(): Promise<void> {
 		const items = await navigator.clipboard.read();
@@ -95,7 +110,9 @@
 				$pixi.background_container,
 				$pixi.renderer,
 				background,
-				$pixi.resize
+				$pixi.resize,
+				canvas_size,
+				fixed_canvas
 			);
 			$dimensions = await add_image.start();
 
@@ -148,28 +165,48 @@
 		},
 		reset_fn: () => {}
 	});
-
-	onMount(() => {
-		return register_tool("bg", {
-			default: "bg_upload",
-			options: sources_list || []
-		});
-	});
 </script>
 
 <svelte:window on:keydown={handle_key} />
 
-{#if $active_tool === "bg"}
-	<div class="upload-container">
+{#if sources.length}
+	<div class="source-wrap">
+		{#each sources_list as { icon, label, id, cb } (id)}
+			<IconButton
+				Icon={icon}
+				size="medium"
+				padded={false}
+				label={label + " button"}
+				hasPopup={true}
+				transparent={true}
+				on:click={cb}
+			/>
+		{/each}
+		<span class="sep"></span>
+	</div>
+	<div
+		class="upload-container"
+		class:click-disabled={!!bg ||
+			active_mode === "webcam" ||
+			$active_tool !== "bg"}
+		style:height="{Math.max(
+			$editor_box.child_height +
+				($editor_box.child_top - $editor_box.parent_top),
+			100
+		)}px"
+	>
 		<Upload
-			hidden={true}
-			bind:this={upload}
+			hidden={bg || active_mode === "webcam" || $active_tool !== "bg"}
+			bind:this={upload_component}
 			filetype="image/*"
 			on:load={handle_upload}
 			on:error
+			bind:dragging
 			{root}
 			disable_click={!sources.includes("upload")}
 			format="blob"
+			{upload}
+			{stream_handler}
 		></Upload>
 		{#if active_mode === "webcam"}
 			<div
@@ -180,6 +217,7 @@
 			>
 				<div class="modal-inner">
 					<Webcam
+						{upload}
 						{root}
 						on:capture={handle_upload}
 						on:error
@@ -203,7 +241,6 @@
 		width: 100%;
 		left: 0;
 		right: 0;
-		background-color: rgba(0, 0, 0, 0.9);
 		margin: auto;
 		z-index: var(--layer-top);
 		display: flex;
@@ -212,5 +249,35 @@
 
 	.modal-inner {
 		width: 100%;
+	}
+
+	.sep {
+		height: 12px;
+		background-color: var(--block-border-color);
+		width: 1px;
+		display: block;
+		margin-left: var(--spacing-xl);
+	}
+
+	.source-wrap {
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		margin-left: var(--spacing-lg);
+		height: 100%;
+	}
+
+	.upload-container {
+		position: absolute;
+		height: 100%;
+		flex-shrink: 1;
+		max-height: 100%;
+		width: 100%;
+		left: 0;
+		top: 0;
+	}
+
+	.upload-container.click-disabled {
+		pointer-events: none;
 	}
 </style>

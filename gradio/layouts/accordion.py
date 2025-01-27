@@ -2,15 +2,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from gradio_client.documentation import document, set_documentation_group
+from gradio_client.documentation import document
 
 from gradio.blocks import BlockContext
 from gradio.component_meta import ComponentMeta
+from gradio.events import Events
 
 if TYPE_CHECKING:
     pass
-
-set_documentation_group("layout")
 
 
 @document()
@@ -22,7 +21,7 @@ class Accordion(BlockContext, metaclass=ComponentMeta):
             gr.Markdown("lorem ipsum")
     """
 
-    EVENTS = []
+    EVENTS = [Events.expand, Events.collapse]
 
     def __init__(
         self,

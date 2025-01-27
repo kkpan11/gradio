@@ -4,16 +4,15 @@
 
 	export let items: any[][] = [];
 
-	export let table_width: number;
 	export let max_height: number;
 	export let actual_height: number;
 	export let table_scrollbar_width: number;
 	export let start = 0;
-	export let end = 0;
+	export let end = 20;
 	export let selected: number | false;
 	let height = "100%";
 
-	let average_height: number;
+	let average_height = 30;
 	let bottom = 0;
 	let contents: HTMLTableSectionElement;
 	let head_height = 0;
@@ -23,16 +22,25 @@
 	let rows: HTMLCollectionOf<HTMLTableRowElement>;
 	let top = 0;
 	let viewport: HTMLTableElement;
-	let viewport_height = 0;
+	let viewport_height = 200;
 	let visible: { index: number; data: any[] }[] = [];
+	let viewport_box: DOMRectReadOnly;
 
-	$: if (mounted) requestAnimationFrame(() => refresh_height_map(sortedItems));
+	$: viewport_height = viewport_box?.height || 200;
+
+	const is_browser = typeof window !== "undefined";
+	const raf = is_browser
+		? window.requestAnimationFrame
+		: (cb: (...args: any[]) => void) => cb();
+
+	$: mounted && raf(() => refresh_height_map(sortedItems));
 
 	let content_height = 0;
 	async function refresh_height_map(_items: typeof items): Promise<void> {
-		if (viewport_height === 0 || table_width === 0) {
+		if (viewport_height === 0) {
 			return;
 		}
+
 		const { scrollTop } = viewport;
 		table_scrollbar_width = viewport.offsetWidth - viewport.clientWidth;
 
@@ -83,8 +91,9 @@
 	}
 
 	$: scroll_and_render(selected);
+
 	async function scroll_and_render(n: number | false): Promise<void> {
-		requestAnimationFrame(async () => {
+		raf(async () => {
 			if (typeof n !== "number") return;
 			const direction = typeof n !== "number" ? false : is_in_view(n);
 			if (direction === true) {
@@ -229,9 +238,15 @@
 
 	$: sortedItems = items;
 
-	$: visible = sortedItems.slice(start, end).map((data, i) => {
-		return { index: i + start, data };
-	});
+	$: visible = is_browser
+		? sortedItems.slice(start, end).map((data, i) => {
+				return { index: i + start, data };
+			})
+		: sortedItems
+				.slice(0, (max_height / sortedItems.length) * average_height + 1)
+				.map((data, i) => {
+					return { index: i + start, data };
+				});
 
 	onMount(() => {
 		rows = contents.children as HTMLCollectionOf<HTMLTableRowElement>;
@@ -244,7 +259,7 @@
 	<table
 		class="table"
 		bind:this={viewport}
-		bind:offsetHeight={viewport_height}
+		bind:contentRect={viewport_box}
 		on:scroll={handle_scroll}
 		style="height: {height}; --bw-svt-p-top: {top}px; --bw-svt-p-bottom: {bottom}px; --bw-svt-head-height: {head_height}px; --bw-svt-foot-height: {foot_height}px; --bw-svt-avg-row-height: {average_height}px"
 	>
@@ -284,6 +299,7 @@
 		border-spacing: 0;
 		width: 100%;
 		scroll-snap-type: x proximity;
+		border-collapse: separate;
 	}
 	table :is(thead, tfoot, tbody) {
 		display: table;
@@ -324,6 +340,6 @@
 		top: 0;
 		left: 0;
 		z-index: var(--layer-1);
-		box-shadow: var(--shadow-drop);
+		overflow: hidden;
 	}
 </style>

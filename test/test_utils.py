@@ -3,32 +3,41 @@ from __future__ import annotations
 import json
 import os
 import sys
-import unittest.mock as mock
 import warnings
+from collections.abc import Sequence
 from pathlib import Path
-from unittest.mock import MagicMock
+from typing import Literal
+from unittest.mock import MagicMock, patch
 
-import httpx
+import numpy as np
 import pytest
-from typing_extensions import Literal
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from gradio import EventData, Request
+from gradio.external_utils import format_ner_list
 from gradio.utils import (
+    FileSize,
+    UnhashableKeyDict,
+    _parse_file_size,
     abspath,
     append_unique_suffix,
     assert_configs_are_equivalent_besides_ids,
     check_function_inputs_match,
     colab_check,
     delete_none,
-    format_ner_list,
-    get_continuous_fn,
+    diff,
+    download_if_url,
     get_extension_from_file_path_or_url,
+    get_function_params,
+    get_icon_path,
     get_type_hints,
     ipython_check,
+    is_allowed_file,
     is_in_or_equal,
     is_special_typed_parameter,
     kaggle_check,
-    readme_to_html,
+    safe_deepcopy,
     sagemaker_check,
     sanitize_list_for_csv,
     sanitize_value_for_csv,
@@ -40,37 +49,58 @@ os.environ["GRADIO_ANALYTICS_ENABLED"] = "False"
 
 
 class TestUtils:
-    @mock.patch("IPython.get_ipython")
+    @patch("IPython.get_ipython")
     def test_colab_check_no_ipython(self, mock_get_ipython):
         mock_get_ipython.return_value = None
         assert colab_check() is False
 
-    @mock.patch("IPython.get_ipython")
+    @patch("IPython.get_ipython")
     def test_ipython_check_import_fail(self, mock_get_ipython):
         mock_get_ipython.side_effect = ImportError()
         assert ipython_check() is False
 
-    @mock.patch("IPython.get_ipython")
+    @patch("IPython.get_ipython")
     def test_ipython_check_no_ipython(self, mock_get_ipython):
         mock_get_ipython.return_value = None
         assert ipython_check() is False
 
-    @mock.patch("httpx.get")
-    def test_readme_to_html_doesnt_crash_on_connection_error(self, mock_get):
-        mock_get.side_effect = httpx.ConnectError("Connection error")
-        readme_to_html("placeholder")
+    def test_download_if_url_doesnt_crash_on_connection_error(self):
+        in_article = "placeholder"
+        out_article = download_if_url(in_article)
+        assert out_article == in_article
 
-    def test_readme_to_html_correct_parse(self):
-        readme_to_html("https://github.com/gradio-app/gradio/blob/master/README.md")
+        # non-printable characters are not allowed in URL address
+        in_article = "text\twith\rnon-printable\nASCII\x00characters"
+        out_article = download_if_url(in_article)
+        assert out_article == in_article
+
+        # only files with HTTP(S) URL can be downloaded
+        in_article = "ftp://localhost/tmp/index.html"
+        out_article = download_if_url(in_article)
+        assert out_article == in_article
+
+        in_article = "file:///C:/tmp/index.html"
+        out_article = download_if_url(in_article)
+        assert out_article == in_article
+
+        # this address will raise ValueError during parsing
+        in_article = "https://[unmatched_bracket#?:@/index.html"
+        out_article = download_if_url(in_article)
+        assert out_article == in_article
+
+    def test_download_if_url_correct_parse(self):
+        in_article = "https://github.com/gradio-app/gradio/blob/master/README.md"
+        out_article = download_if_url(in_article)
+        assert out_article != in_article
 
     def test_sagemaker_check_false(self):
         assert not sagemaker_check()
 
     def test_sagemaker_check_false_if_boto3_not_installed(self):
-        with mock.patch.dict(sys.modules, {"boto3": None}, clear=True):
+        with patch.dict(sys.modules, {"boto3": None}, clear=True):
             assert not sagemaker_check()
 
-    @mock.patch("boto3.session.Session.client")
+    @patch("boto3.session.Session.client")
     def test_sagemaker_check_true(self, mock_client):
         mock_client().get_caller_identity = MagicMock(
             return_value={
@@ -83,13 +113,13 @@ class TestUtils:
         assert not kaggle_check()
 
     def test_kaggle_check_true_when_run_type_set(self):
-        with mock.patch.dict(
+        with patch.dict(
             os.environ, {"KAGGLE_KERNEL_RUN_TYPE": "Interactive"}, clear=True
         ):
             assert kaggle_check()
 
     def test_kaggle_check_true_when_both_set(self):
-        with mock.patch.dict(
+        with patch.dict(
             os.environ,
             {"KAGGLE_KERNEL_RUN_TYPE": "Interactive", "GFOOTBALL_DATA_DIR": "./"},
             clear=True,
@@ -97,7 +127,7 @@ class TestUtils:
             assert kaggle_check()
 
     def test_kaggle_check_false_when_neither_set(self):
-        with mock.patch.dict(
+        with patch.dict(
             os.environ,
             {"KAGGLE_KERNEL_RUN_TYPE": "", "GFOOTBALL_DATA_DIR": ""},
             clear=True,
@@ -199,6 +229,9 @@ class TestValidateURL:
         assert validate_url(
             "https://upload.wikimedia.org/wikipedia/commons/b/b0/Bengal_tiger_%28Panthera_tigris_tigris%29_female_3_crop.jpg"
         )
+        assert validate_url(
+            "https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/bread_small.png"
+        )
 
     def test_invalid_urls(self):
         assert not (validate_url("C:/Users/"))
@@ -272,12 +305,12 @@ class TestGetTypeHints:
         for x in test_objs:
             hints = get_type_hints(x)
             assert len(hints) == 1
-            assert hints["s"] == str
+            assert hints["s"] is str
 
         assert len(get_type_hints(GenericObject())) == 0
 
     def test_is_special_typed_parameter(self):
-        def func(a: list[str], b: Literal["a", "b"], c, d: Request):
+        def func(a: list[str], b: Literal["a", "b"], c, d: Request, e: Request | None):
             pass
 
         hints = get_type_hints(func)
@@ -285,6 +318,7 @@ class TestGetTypeHints:
         assert not is_special_typed_parameter("b", hints)
         assert not is_special_typed_parameter("c", hints)
         assert is_special_typed_parameter("d", hints)
+        assert is_special_typed_parameter("e", hints)
 
     def test_is_special_typed_parameter_with_pipe(self):
         def func(a: Request, b: str | int, c: list[str]):
@@ -318,71 +352,6 @@ class TestCheckFunctionInputsMatch:
                 check_function_inputs_match(x, [None], False)
 
 
-class TestGetContinuousFn:
-    @pytest.mark.asyncio
-    async def test_get_continuous_fn(self):
-        def int_return(x):  # for origin condition
-            return x + 1
-
-        def int_yield(x):  # new condition
-            for _i in range(2):
-                yield x
-                x += 1
-
-        def list_yield(x):  # new condition
-            for _i in range(2):
-                yield x
-                x += [1]
-
-        agen_int_return = get_continuous_fn(fn=int_return, every=0.01)
-        agen_int_yield = get_continuous_fn(fn=int_yield, every=0.01)
-        agen_list_yield = get_continuous_fn(fn=list_yield, every=0.01)
-        agener_int_return = agen_int_return(1)
-        agener_int = agen_int_yield(1)  # Primitive
-        agener_list = agen_list_yield([1])  # Reference
-        assert await agener_int_return.__anext__() == 2
-        assert await agener_int_return.__anext__() == 2
-        assert await agener_int.__anext__() == 1
-        assert await agener_int.__anext__() == 2
-        assert await agener_int.__anext__() == 1
-        assert [1] == await agener_list.__anext__()
-        assert [1, 1] == await agener_list.__anext__()
-        assert [1, 1, 1] == await agener_list.__anext__()
-
-    @pytest.mark.asyncio
-    async def test_get_continuous_fn_with_async_function(self):
-        async def async_int_return(x):  # for origin condition
-            return x + 1
-
-        agen_int_return = get_continuous_fn(fn=async_int_return, every=0.01)
-        agener_int_return = agen_int_return(1)
-        assert await agener_int_return.__anext__() == 2
-        assert await agener_int_return.__anext__() == 2
-
-    @pytest.mark.asyncio
-    async def test_get_continuous_fn_with_async_generator(self):
-        async def async_int_yield(x):  # new condition
-            for _i in range(2):
-                yield x
-                x += 1
-
-        async def async_list_yield(x):  # new condition
-            for _i in range(2):
-                yield x
-                x += [1]
-
-        agen_int_yield = get_continuous_fn(fn=async_int_yield, every=0.01)
-        agen_list_yield = get_continuous_fn(fn=async_list_yield, every=0.01)
-        agener_int = agen_int_yield(1)  # Primitive
-        agener_list = agen_list_yield([1])  # Reference
-        assert await agener_int.__anext__() == 1
-        assert await agener_int.__anext__() == 2
-        assert await agener_int.__anext__() == 1
-        assert [1] == await agener_list.__anext__()
-        assert [1, 1] == await agener_list.__anext__()
-        assert [1, 1, 1] == await agener_list.__anext__()
-
-
 def test_tex2svg_preserves_matplotlib_backend():
     import matplotlib
 
@@ -399,11 +368,141 @@ def test_tex2svg_preserves_matplotlib_backend():
 def test_is_in_or_equal():
     assert is_in_or_equal("files/lion.jpg", "files/lion.jpg")
     assert is_in_or_equal("files/lion.jpg", "files")
+    assert is_in_or_equal("files/lion.._M.jpg", "files")
     assert not is_in_or_equal("files", "files/lion.jpg")
     assert is_in_or_equal("/home/usr/notes.txt", "/home/usr/")
     assert not is_in_or_equal("/home/usr/subdirectory", "/home/usr/notes.txt")
     assert not is_in_or_equal("/home/usr/../../etc/notes.txt", "/home/usr/")
     assert not is_in_or_equal("/safe_dir/subdir/../../unsafe_file.txt", "/safe_dir/")
+
+
+@pytest.mark.skipif(
+    sys.platform.startswith("win"),
+    reason="Windows doesn't support POSIX double-slash notation",
+)
+def test_is_in_or_equal_posix_specific_paths():
+    assert is_in_or_equal("//foo/..a", "//foo")
+    assert is_in_or_equal("//foo/asd/", "/foo")
+    assert is_in_or_equal("//foo/..²", "/foo")
+
+
+def create_path_string():
+    return st.lists(
+        st.one_of(
+            st.text(
+                alphabet="ab@1/(",
+                min_size=1,
+            ),
+            st.just(".."),
+            st.just("."),
+        ),
+        min_size=1,
+        max_size=10,  # Limit depth to avoid excessively long paths
+    ).map(lambda x: os.path.join(*x).replace("(", ".."))
+
+
+def create_path_list():
+    return st.lists(create_path_string(), min_size=0, max_size=5)
+
+
+def my_check(path_1, path_2):
+    try:
+        path_1 = Path(path_1).resolve()
+        path_2 = Path(path_2).resolve()
+        _ = path_1.relative_to(path_2)
+        return True
+    except ValueError:
+        return False
+
+
+@settings(derandomize=os.getenv("CI") is not None)
+@given(
+    path_1=create_path_string(),
+    path_2=create_path_string(),
+)
+def test_is_in_or_equal_fuzzer(path_1, path_2):
+    try:
+        # Convert to absolute paths
+        abs_path_1 = abspath(path_1)
+        abs_path_2 = abspath(path_2)
+        result = is_in_or_equal(abs_path_1, abs_path_2)
+        assert result == my_check(abs_path_1, abs_path_2)
+
+    except Exception as e:
+        pytest.fail(f"Exception raised: {e}")
+
+
+@settings(derandomize=os.getenv("CI") is not None)
+@given(
+    path=create_path_string(),
+    blocked_paths=create_path_list(),
+    allowed_paths=create_path_list(),
+    created_paths=create_path_list(),
+)
+def test_is_allowed_file_fuzzer(
+    path: Path,
+    blocked_paths: Sequence[Path],
+    allowed_paths: Sequence[Path],
+    created_paths: Sequence[Path],
+):
+    result, reason = is_allowed_file(path, blocked_paths, allowed_paths, created_paths)
+
+    assert isinstance(result, bool)
+    assert reason in [
+        "in_blocklist",
+        "allowed",
+        "not_created_or_allowed",
+        "created",
+    ]
+
+    if result:
+        assert reason in ("allowed", "created")
+    elif reason == "in_blocklist":
+        assert any(is_in_or_equal(path, blocked_path) for blocked_path in blocked_paths)
+    elif reason == "not_created_or_allowed":
+        assert not any(
+            is_in_or_equal(path, allowed_path) for allowed_path in allowed_paths
+        )
+
+    if reason == "allowed":
+        assert any(is_in_or_equal(path, allowed_path) for allowed_path in allowed_paths)
+    elif reason == "created":
+        assert any(is_in_or_equal(path, created_path) for created_path in created_paths)
+
+
+@pytest.mark.parametrize(
+    "path,blocked_paths,allowed_paths",
+    [
+        ("/a/foo.txt", ["/a"], ["/b"], False),
+        ("/b/foo.txt", ["/a"], ["/b"], True),
+        ("/a/../c/foo.txt", ["/c/"], ["/a/"], False),
+        ("/c/../a/foo.txt", ["/c/"], ["/a/"], True),
+        ("/c/foo.txt", ["/c/"], ["/c/foo.txt"], True),
+    ],
+)
+def is_allowed_file_corner_cases(path, blocked_paths, allowed_paths, result):
+    assert is_allowed_file(path, blocked_paths, allowed_paths, []) == result
+
+
+# Additional test for known edge cases
+@pytest.mark.parametrize(
+    "path_1,path_2,expected",
+    [
+        ("/AAA/a/../a", "/AAA", True),
+        ("//AA/a", "/tmp", False),
+        ("/AAA/..", "/AAA", False),
+        ("/a/b/c", "/d/e/f", False),
+        (".", "..", True),
+        ("..", ".", False),
+        ("/a/b/./c", "/a/b", True),
+        ("/a/b/../c", "/a", True),
+        ("/a/b/c", "/a/b/c/../d", False),
+        ("/", "/a", False),
+        ("/a", "/", True),
+    ],
+)
+def test_is_in_or_equal_edge_cases(path_1, path_2, expected):
+    assert is_in_or_equal(path_1, path_2) == expected
 
 
 @pytest.mark.parametrize(
@@ -417,3 +516,215 @@ def test_is_in_or_equal():
 )
 def test_get_extension_from_file_path_or_url(path_or_url, extension):
     assert get_extension_from_file_path_or_url(path_or_url) == extension
+
+
+@pytest.mark.parametrize(
+    "old, new, expected_diff",
+    [
+        ({"a": 1, "b": 2}, {"a": 1, "b": 2}, []),
+        ({}, {"a": 1, "b": 2}, [("add", ["a"], 1), ("add", ["b"], 2)]),
+        (["a", "b"], {"a": 1, "b": 2}, [("replace", [], {"a": 1, "b": 2})]),
+        ("abc", "abcdef", [("append", [], "def")]),
+    ],
+)
+def test_diff(old, new, expected_diff):
+    assert diff(old, new) == expected_diff
+
+
+class TestFunctionParams:
+    def test_regular_function(self):
+        def func(a: int, b: int = 10, c: str = "default", d=None):
+            pass
+
+        assert get_function_params(func) == [
+            ("a", False, None, int),
+            ("b", True, 10, int),
+            ("c", True, "default", str),
+            ("d", True, None, None),
+        ]
+
+    def test_function_no_params(self):
+        def func():
+            pass
+
+        assert get_function_params(func) == []
+
+    def test_lambda_function(self):
+        assert get_function_params(lambda x, y: x + y) == [
+            ("x", False, None, None),
+            ("y", False, None, None),
+        ]
+
+    def test_function_with_args(self):
+        def func(a, *args):
+            pass
+
+        assert get_function_params(func) == [("a", False, None, None)]
+
+    def test_function_with_kwargs(self):
+        def func(a, **kwargs):
+            pass
+
+        assert get_function_params(func) == [("a", False, None, None)]
+
+    def test_function_with_special_args(self):
+        def func(a, r: Request, b=10):
+            pass
+
+        assert get_function_params(func) == [
+            ("a", False, None, None),
+            ("b", True, 10, None),
+        ]
+
+        def func2(a, r: Request | None = None, b="abc"):
+            pass
+
+        assert get_function_params(func2) == [
+            ("a", False, None, None),
+            ("b", True, "abc", None),
+        ]
+
+    def test_class_method_skip_first_param(self):
+        class MyClass:
+            def method(self, arg1, arg2=42):
+                pass
+
+        assert get_function_params(MyClass().method) == [
+            ("arg1", False, None, None),
+            ("arg2", True, 42, None),
+        ]
+
+    def test_static_method_no_skip(self):
+        class MyClass:
+            @staticmethod
+            def method(arg1, arg2=42):
+                pass
+
+        assert get_function_params(MyClass.method) == [
+            ("arg1", False, None, None),
+            ("arg2", True, 42, None),
+        ]
+
+    def test_class_method_with_args(self):
+        class MyClass:
+            def method(self, a, *args, b=42):
+                pass
+
+        assert get_function_params(MyClass().method) == [("a", False, None, None)]
+
+    def test_lambda_with_args(self):
+        assert get_function_params(lambda x, *args: x) == [("x", False, None, None)]
+
+    def test_lambda_with_kwargs(self):
+        assert get_function_params(lambda x, **kwargs: x) == [("x", False, None, None)]
+
+
+def test_parse_file_size():
+    assert _parse_file_size("1kb") == 1 * FileSize.KB
+    assert _parse_file_size("1mb") == 1 * FileSize.MB
+    assert _parse_file_size("505 Mb") == 505 * FileSize.MB
+
+
+class TestUnhashableKeyDict:
+    def test_set_get_simple(self):
+        d = UnhashableKeyDict()
+        d["a"] = 1
+        assert d["a"] == 1
+
+    def test_set_get_unhashable(self):
+        d = UnhashableKeyDict()
+        key = [1, 2, 3]
+        key2 = [1, 2, 3]
+        d[key] = "value"
+        assert d[key] == "value"
+        assert d[key2] == "value"
+
+    def test_set_get_numpy_array(self):
+        d = UnhashableKeyDict()
+        key = np.array([1, 2, 3])
+        key2 = np.array([1, 2, 3])
+        d[key] = "numpy value"
+        assert d[key2] == "numpy value"
+
+    def test_overwrite(self):
+        d = UnhashableKeyDict()
+        d["key"] = "old"
+        d["key"] = "new"
+        assert d["key"] == "new"
+
+    def test_delete(self):
+        d = UnhashableKeyDict()
+        d["key"] = "value"
+        del d["key"]
+        assert len(d) == 0
+        with pytest.raises(KeyError):
+            d["key"]
+
+    def test_delete_nonexistent(self):
+        d = UnhashableKeyDict()
+        with pytest.raises(KeyError):
+            del d["nonexistent"]
+
+    def test_len(self):
+        d = UnhashableKeyDict()
+        assert len(d) == 0
+        d["a"] = 1
+        d["b"] = 2
+        assert len(d) == 2
+
+    def test_contains(self):
+        d = UnhashableKeyDict()
+        d["key"] = "value"
+        assert "key" in d
+        assert "nonexistent" not in d
+
+    def test_get_nonexistent(self):
+        d = UnhashableKeyDict()
+        with pytest.raises(KeyError):
+            d["nonexistent"]
+
+
+class TestSafeDeepCopy:
+    def test_safe_deepcopy_dict(self):
+        original = {"key1": [1, 2, {"nested_key": "value"}], "key2": "simple_string"}
+        copied = safe_deepcopy(original)
+
+        assert copied == original
+        assert copied is not original
+        assert copied["key1"] is not original["key1"]
+        assert copied["key1"][2] is not original["key1"][2]
+
+    def test_safe_deepcopy_list(self):
+        original = [1, 2, [3, 4, {"key": "value"}]]
+        copied = safe_deepcopy(original)
+
+        assert copied == original
+        assert copied is not original
+        assert copied[2] is not original[2]
+        assert copied[2][2] is not original[2][2]
+
+    def test_safe_deepcopy_custom_object(self):
+        class CustomClass:
+            def __init__(self, value):
+                self.value = value
+
+        original = CustomClass(10)
+        copied = safe_deepcopy(original)
+
+        assert copied.value == original.value
+        assert copied is not original
+
+    def test_safe_deepcopy_handles_undeepcopyable(self):
+        class Uncopyable:
+            def __deepcopy__(self, memo):
+                raise TypeError("Can't deepcopy")
+
+        original = Uncopyable()
+        result = safe_deepcopy(original)
+        assert result is not original
+        assert type(result) is type(original)
+
+
+def test_get_icon_path():
+    assert get_icon_path("plus.svg").endswith("plus.svg")
+    assert get_icon_path("huggingface-logo.svg").endswith("huggingface-logo.svg")

@@ -18,6 +18,7 @@
 	export let value_is_output = false;
 	export let label = "Checkbox";
 	export let info: string | undefined = undefined;
+	export let root: string;
 	export let container = true;
 	export let scale: number | null = null;
 	export let min_width: number | undefined = undefined;
@@ -26,6 +27,7 @@
 		change: never;
 		select: SelectData;
 		input: never;
+		clear_status: LoadingStatus;
 	}>;
 	export let interactive: boolean;
 
@@ -48,10 +50,11 @@
 		autoscroll={gradio.autoscroll}
 		i18n={gradio.i18n}
 		{...loading_status}
+		on:clear_status={() => gradio.dispatch("clear_status", loading_status)}
 	/>
 
 	{#if info}
-		<Info>{info}</Info>
+		<Info {root} {info} />
 	{/if}
 
 	<BaseCheckbox

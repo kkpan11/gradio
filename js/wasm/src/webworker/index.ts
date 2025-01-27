@@ -1,7 +1,11 @@
 /// <reference lib="webworker" />
 /* eslint-env worker */
 
-import type { PyodideInterface } from "pyodide";
+import type {
+	PackageData,
+	PyodideInterface,
+	loadPyodide as loadPyodideValue
+} from "pyodide";
 import type { PyProxy } from "pyodide/ffi";
 import type {
 	InMessage,
@@ -23,12 +27,14 @@ import { generateRandomString } from "./random";
 import scriptRunnerPySource from "./py/script_runner.py?raw";
 import unloadModulesPySource from "./py/unload_modules.py?raw";
 
-importScripts("https://cdn.jsdelivr.net/pyodide/v0.24.0/full/pyodide.js");
+importScripts("https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js");
 
 type MessageTransceiver = DedicatedWorkerGlobalScope | MessagePort;
 
 let pyodide: PyodideInterface;
 let micropip: PyProxy;
+
+declare let loadPyodide: typeof loadPyodideValue; // This will be dynamically loaded by importScript.
 
 let call_asgi_app_from_js: (
 	appId: string,
@@ -49,15 +55,33 @@ let run_script: (
 ) => Promise<void>;
 let unload_local_modules: (target_dir_path?: string) => void;
 
+function installPackages(requirements: string[], retries = 3): Promise<void> {
+	// A wrapper function to install packages with retries.
+	// Ref: https://github.com/pyodide/micropip/issues/170#issuecomment-2558887851
+	// Background: https://discord.com/channels/879548962464493619/1318487777779646504/1319516137725231124
+	if (retries <= 0) {
+		throw new Error("Failed to install packages.");
+	}
+
+	return micropip.install
+		.callKwargs(requirements, { keep_going: true })
+		.catch((error) => {
+			console.error("Failed to install packages. Retrying...", error);
+			return installPackages(requirements, retries - 1);
+		});
+}
+
 async function initializeEnvironment(
 	options: InMessageInitEnv["data"],
-	updateProgress: (log: string) => void
+	updateProgress: (log: string) => void,
+	stdout: (output: string) => void,
+	stderr: (output: string) => void
 ): Promise<void> {
 	console.debug("Loading Pyodide.");
 	updateProgress("Loading Pyodide");
 	pyodide = await loadPyodide({
-		stdout: console.debug,
-		stderr: console.error
+		stdout,
+		stderr
 	});
 	console.debug("Pyodide is loaded.");
 
@@ -73,19 +97,9 @@ async function initializeEnvironment(
 	];
 	console.debug("Loading Gradio wheels.", gradioWheelUrls);
 	updateProgress("Loading Gradio wheels");
-	await micropip.add_mock_package("ffmpy", "0.3.0");
-	await micropip.add_mock_package("aiohttp", "3.8.4");
 	await pyodide.loadPackage(["ssl", "setuptools"]);
-	await micropip.install(["typing-extensions>=4.8.0"]); // Typing extensions needs to be installed first otherwise the versions from the pyodide lockfile is used which is incompatible with the latest fastapi.
-	await micropip.install(["markdown-it-py[linkify]~=2.2.0"]); // On 3rd June 2023, markdown-it-py 3.0.0 has been released. The `gradio` package depends on its `>=2.0.0` version so its 3.x will be resolved. However, it conflicts with `mdit-py-plugins`'s dependency `markdown-it-py >=1.0.0,<3.0.0` and micropip currently can't resolve it. So we explicitly install the compatible version of the library here.
-	await micropip.install(["anyio==3.*"]); // `fastapi` depends on `anyio>=3.4.0,<5` so its 4.* can be installed, but it conflicts with the anyio version `httpx` depends on, `==3.*`. Seems like micropip can't resolve it for now, so we explicitly install the compatible version of the library here.
-	await micropip.add_mock_package("pydantic", "2.4.2"); // PydanticV2 is not supported on Pyodide yet. Mock it here for installing the `gradio` package to pass the version check. Then, install PydanticV1 below.
-	await micropip.add_mock_package("ruff", "0.1.7"); // `ruff` was added to the requirements of `gradio` for the custom components (https://github.com/gradio-app/gradio/pull/7030), but it's not working on PYodide yet. Also Lite doesn't need it, so mock it here for installing the `gradio` package to pass the version check.
-	await micropip.install.callKwargs(gradioWheelUrls, {
-		keep_going: true
-	});
-	await micropip.remove_mock_package("pydantic");
-	await micropip.install(["pydantic==1.*"]); // Pydantic is necessary for `gradio` to run, so install v1 here as a fallback. Some tricks has been introduced in `gradio/data_classes.py` to make it work with v1.
+	await micropip.add_mock_package("ffmpy", "0.3.0");
+	await installPackages(gradioWheelUrls);
 	console.debug("Gradio wheels are loaded.");
 
 	console.debug("Mocking os module methods.");
@@ -109,8 +123,6 @@ os.link = lambda src, dst: None
 
 	console.debug("Defining a ASGI wrapper function.");
 	updateProgress("Defining a ASGI wrapper function");
-	// TODO: Unlike Streamlit, user's code is executed in the global scope,
-	//       so we should not define this function in the global scope.
 	await pyodide.runPythonAsync(`
 # Based on Shiny's App.call_pyodide().
 # https://github.com/rstudio/py-shiny/blob/v0.3.3/shiny/_app.py#L224-L258
@@ -134,7 +146,11 @@ async def _call_asgi_app_from_js(app_id, scope, receive, send):
 
 	async def rcv():
 			event = await receive()
-			return event.to_py()
+			py_event = event.to_py()
+			if "body" in py_event:
+					if isinstance(py_event["body"], memoryview):
+							py_event["body"] = py_event["body"].tobytes()
+			return py_event
 
 	async def snd(event):
 			await send(event)
@@ -161,16 +177,6 @@ anyio.to_thread.run_sync = mocked_anyio_to_thread_run_sync
 	`);
 	console.debug("Async libraries are mocked.");
 
-	console.debug("Setting matplotlib backend.");
-	updateProgress("Setting matplotlib backend");
-	// Ref: https://github.com/streamlit/streamlit/blob/1.22.0/lib/streamlit/web/bootstrap.py#L111
-	// This backend setting is required to use matplotlib in Wasm environment.
-	await pyodide.runPythonAsync(`
-import matplotlib
-matplotlib.use("agg")
-`);
-	console.debug("matplotlib backend is set.");
-
 	console.debug("Setting up Python utility functions.");
 	updateProgress("Setting up Python utility functions");
 	await pyodide.runPythonAsync(scriptRunnerPySource);
@@ -186,7 +192,8 @@ matplotlib.use("agg")
 async function initializeApp(
 	appId: string,
 	options: InMessageInitApp["data"],
-	updateProgress: (log: string) => void
+	updateProgress: (log: string) => void,
+	onModulesAutoLoaded: (packages: PackageData[]) => void
 ): Promise<void> {
 	const appHomeDir = getAppHomeDir(appId);
 	console.debug("Creating a home directory for the app.", {
@@ -197,6 +204,7 @@ async function initializeApp(
 
 	console.debug("Mounting files.", options.files);
 	updateProgress("Mounting files");
+	const pythonFileContents: string[] = [];
 	await Promise.all(
 		Object.keys(options.files).map(async (path) => {
 			const file = options.files[path];
@@ -215,14 +223,50 @@ async function initializeApp(
 			const appifiedPath = resolveAppHomeBasedPath(appId, path);
 			console.debug(`Write a file "${appifiedPath}"`);
 			writeFileWithParents(pyodide, appifiedPath, data, opts);
+
+			if (typeof data === "string" && path.endsWith(".py")) {
+				pythonFileContents.push(data);
+			}
 		})
 	);
 	console.debug("Files are mounted.");
 
 	console.debug("Installing packages.", options.requirements);
 	updateProgress("Installing packages");
-	await micropip.install.callKwargs(options.requirements, { keep_going: true });
+	await installPackages(options.requirements);
 	console.debug("Packages are installed.");
+
+	console.debug("Auto-loading modules.");
+	const loadedPackagesArr = await Promise.all(
+		pythonFileContents.map((source) => pyodide.loadPackagesFromImports(source))
+	);
+	const loadedPackagesSet = new Set(loadedPackagesArr.flat()); // Remove duplicates
+	const loadedPackages = Array.from(loadedPackagesSet);
+	if (loadedPackages.length > 0) {
+		onModulesAutoLoaded(loadedPackages);
+	}
+	const loadedPackageNames = loadedPackages.map((pkg) => pkg.name);
+	console.debug("Modules are auto-loaded.", loadedPackages);
+
+	if (
+		options.requirements.includes("matplotlib") ||
+		loadedPackageNames.includes("matplotlib")
+	) {
+		console.debug("Setting matplotlib backend.");
+		updateProgress("Setting matplotlib backend");
+		// Ref: https://github.com/pyodide/pyodide/issues/561#issuecomment-1992613717
+		// This backend setting is required to use matplotlib in Wasm environment.
+		await pyodide.runPythonAsync(`
+try:
+	import matplotlib
+	matplotlib.use("agg")
+except ImportError:
+	pass
+`);
+		console.debug("matplotlib backend is set.");
+	}
+
+	updateProgress("App is now loaded");
 }
 
 const ctx = self as DedicatedWorkerGlobalScope | SharedWorkerGlobalScope;
@@ -260,10 +304,45 @@ function setupMessageHandler(receiver: MessageTransceiver): void {
 	console.debug("Set up a new app.", { appId });
 
 	const updateProgress = (log: string): void => {
-		const message: OutMessage = {
+		receiver.postMessage({
 			type: "progress-update",
 			data: {
 				log
+			}
+		} satisfies OutMessage);
+	};
+	const stdout = (output: string): void => {
+		console.log(output);
+		receiver.postMessage({
+			type: "stdout",
+			data: {
+				output
+			}
+		} satisfies OutMessage);
+	};
+	const stderr = (output: string): void => {
+		console.error(output);
+		receiver.postMessage({
+			type: "stderr",
+			data: {
+				output
+			}
+		} satisfies OutMessage);
+	};
+	const onPythonError = (traceback: string): void => {
+		console.error("Python error:", traceback);
+		receiver.postMessage({
+			type: "python-error",
+			data: {
+				traceback: traceback
+			}
+		} satisfies OutMessage);
+	};
+	const onModulesAutoLoaded = (packages: PackageData[]) => {
+		const message: OutMessage = {
+			type: "modules-auto-loaded",
+			data: {
+				packages
 			}
 		};
 		receiver.postMessage(message);
@@ -283,7 +362,12 @@ function setupMessageHandler(receiver: MessageTransceiver): void {
 		try {
 			if (msg.type === "init-env") {
 				if (envReadyPromise == null) {
-					envReadyPromise = initializeEnvironment(msg.data, updateProgress);
+					envReadyPromise = initializeEnvironment(
+						msg.data,
+						updateProgress,
+						stdout,
+						stderr
+					);
 				} else {
 					updateProgress(
 						"Pyodide environment initialization is ongoing in another session"
@@ -313,8 +397,16 @@ function setupMessageHandler(receiver: MessageTransceiver): void {
 			}
 			await envReadyPromise;
 
+			const gradio = pyodide.pyimport("gradio");
+			gradio.wasm_utils.register_error_traceback_callback(appId, onPythonError);
+
 			if (msg.type === "init-app") {
-				appReadyPromise = initializeApp(appId, msg.data, updateProgress);
+				appReadyPromise = initializeApp(
+					appId,
+					msg.data,
+					updateProgress,
+					onModulesAutoLoaded
+				);
 
 				const replyMessage: ReplyMessageSuccess = {
 					type: "reply:success",
@@ -340,6 +432,15 @@ function setupMessageHandler(receiver: MessageTransceiver): void {
 				}
 				case "run-python-code": {
 					unload_local_modules();
+
+					console.debug(`Auto install the requirements`);
+					const loadedPackages = await pyodide.loadPackagesFromImports(
+						msg.data.code
+					);
+					if (loadedPackages.length > 0) {
+						onModulesAutoLoaded(loadedPackages);
+					}
+					console.debug("Modules are auto-loaded.", loadedPackages);
 
 					await run_code(appId, getAppHomeDir(appId), msg.data.code);
 
@@ -373,6 +474,16 @@ function setupMessageHandler(receiver: MessageTransceiver): void {
 				}
 				case "file:write": {
 					const { path, data: fileData, opts } = msg.data;
+
+					if (typeof fileData === "string" && path.endsWith(".py")) {
+						console.debug(`Auto install the requirements in ${path}`);
+						const loadedPackages =
+							await pyodide.loadPackagesFromImports(fileData);
+						if (loadedPackages.length > 0) {
+							onModulesAutoLoaded(loadedPackages);
+						}
+						console.debug("Modules are auto-loaded.", loadedPackages);
+					}
 
 					const appifiedPath = resolveAppHomeBasedPath(appId, path);
 
@@ -419,20 +530,20 @@ function setupMessageHandler(receiver: MessageTransceiver): void {
 				case "install": {
 					const { requirements } = msg.data;
 
-					const micropip = pyodide.pyimport("micropip");
-
 					console.debug("Install the requirements:", requirements);
 					verifyRequirements(requirements); // Blocks the not allowed wheel URL schemes.
-					await micropip.install
-						.callKwargs(requirements, { keep_going: true })
+					await installPackages(requirements)
 						.then(() => {
 							if (requirements.includes("matplotlib")) {
-								// Ref: https://github.com/streamlit/streamlit/blob/1.22.0/lib/streamlit/web/bootstrap.py#L111
+								// Ref: https://github.com/pyodide/pyodide/issues/561#issuecomment-1992613717
 								// This backend setting is required to use matplotlib in Wasm environment.
 								return pyodide.runPythonAsync(`
-									import matplotlib
-									matplotlib.use("agg")
-								`);
+try:
+	import matplotlib
+	matplotlib.use("agg")
+except ImportError:
+	pass
+`);
 							}
 						})
 						.then(() => {

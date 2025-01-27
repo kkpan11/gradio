@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { createEventDispatcher, tick } from "svelte";
 	import { Upload, ModifyUpload } from "@gradio/upload";
-	import type { FileData } from "@gradio/client";
-	import { BlockLabel } from "@gradio/atoms";
-	import { File } from "@gradio/icons";
+	import type { FileData, Client } from "@gradio/client";
+	import { BlockLabel, IconButtonWrapper, IconButton } from "@gradio/atoms";
+	import { File, Clear, Upload as UploadIcon } from "@gradio/icons";
 
 	import FilePreview from "./FilePreview.svelte";
 	import type { I18nFormatter } from "@gradio/utils";
@@ -12,17 +12,28 @@
 
 	export let label: string;
 	export let show_label = true;
-	export let file_count = "single";
+	export let file_count: "single" | "multiple" | "directory" = "single";
 	export let file_types: string[] | null = null;
 	export let selectable = false;
 	export let root: string;
 	export let height: number | undefined = undefined;
 	export let i18n: I18nFormatter;
+	export let max_file_size: number | null = null;
+	export let upload: Client["upload"];
+	export let stream_handler: Client["stream"];
+	export let uploading = false;
+	export let allow_reordering = false;
 
 	async function handle_upload({
 		detail
 	}: CustomEvent<FileData | FileData[]>): Promise<void> {
-		value = detail;
+		if (Array.isArray(value)) {
+			value = [...value, ...(Array.isArray(detail) ? detail : [detail])];
+		} else if (value) {
+			value = [value, ...(Array.isArray(detail) ? detail : [detail])];
+		} else {
+			value = detail;
+		}
 		await tick();
 		dispatch("change", value);
 		dispatch("upload", detail);
@@ -43,40 +54,65 @@
 		error: string;
 	}>();
 
-	let accept_file_types: string | null;
-	if (file_types == null) {
-		accept_file_types = null;
-	} else {
-		file_types = file_types.map((x) => {
-			if (x.startsWith(".")) {
-				return x;
-			}
-			return x + "/*";
-		});
-		accept_file_types = file_types.join(", ");
-	}
-
 	let dragging = false;
 	$: dispatch("drag", dragging);
 </script>
 
-<BlockLabel
-	{show_label}
-	Icon={File}
-	float={value === null}
-	label={label || "File"}
-/>
+<BlockLabel {show_label} Icon={File} float={!value} label={label || "File"} />
 
 {#if value && (Array.isArray(value) ? value.length > 0 : true)}
-	<ModifyUpload {i18n} on:clear={handle_clear} absolute />
-	<FilePreview {i18n} on:select {selectable} {value} {height} />
+	<IconButtonWrapper>
+		{#if !(file_count === "single" && (Array.isArray(value) ? value.length > 0 : value !== null))}
+			<IconButton Icon={UploadIcon} label={i18n("common.upload")}>
+				<Upload
+					icon_upload={true}
+					on:load={handle_upload}
+					filetype={file_types}
+					{file_count}
+					{max_file_size}
+					{root}
+					bind:dragging
+					bind:uploading
+					on:error
+					{stream_handler}
+					{upload}
+				/>
+			</IconButton>
+		{/if}
+		<IconButton
+			Icon={Clear}
+			label={i18n("common.clear")}
+			on:click={(event) => {
+				dispatch("clear");
+				event.stopPropagation();
+				handle_clear();
+			}}
+		/>
+	</IconButtonWrapper>
+
+	<FilePreview
+		{i18n}
+		on:select
+		{selectable}
+		{value}
+		{height}
+		on:change
+		on:delete
+		{allow_reordering}
+	/>
 {:else}
 	<Upload
 		on:load={handle_upload}
-		filetype={accept_file_types}
+		filetype={file_types}
 		{file_count}
+		{max_file_size}
 		{root}
 		bind:dragging
+		bind:uploading
+		on:error
+		{stream_handler}
+		{upload}
+		{height}
 	>
 		<slot />
 	</Upload>

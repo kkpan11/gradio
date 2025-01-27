@@ -4,17 +4,23 @@ from __future__ import annotations
 
 import tempfile
 import warnings
+from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any, Callable, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
-from gradio_client.documentation import document, set_documentation_group
+import gradio_client.utils as client_utils
+from gradio_client import handle_file
+from gradio_client.documentation import document
 
+from gradio import processing_utils
 from gradio.components.base import Component
 from gradio.data_classes import FileData, ListFiles
 from gradio.events import Events
+from gradio.exceptions import Error
 from gradio.utils import NamedString
 
-set_documentation_group("component")
+if TYPE_CHECKING:
+    from gradio.components import Timer
 
 
 @document()
@@ -22,7 +28,7 @@ class UploadButton(Component):
     """
     Used to create an upload button, when clicked allows a user to upload files that satisfy the specified file type or generic files (if file_type not set).
 
-    Demos: upload_button
+    Demos: upload_and_download, upload_button
     """
 
     EVENTS = [Events.click, Events.upload]
@@ -32,10 +38,11 @@ class UploadButton(Component):
         label: str = "Upload a File",
         value: str | list[str] | Callable | None = None,
         *,
-        every: float | None = None,
+        every: Timer | float | None = None,
+        inputs: Component | Sequence[Component] | set[Component] | None = None,
         variant: Literal["primary", "secondary", "stop"] = "secondary",
         visible: bool = True,
-        size: Literal["sm", "lg"] | None = None,
+        size: Literal["sm", "md", "lg"] = "lg",
         icon: str | None = None,
         scale: int | None = None,
         min_width: int | None = None,
@@ -43,7 +50,8 @@ class UploadButton(Component):
         elem_id: str | None = None,
         elem_classes: list[str] | str | None = None,
         render: bool = True,
-        type: Literal["filepath", "bytes"] = "filepath",
+        key: int | str | None = None,
+        type: Literal["filepath", "binary"] = "filepath",
         file_count: Literal["single", "multiple", "directory"] = "single",
         file_types: list[str] | None = None,
     ):
@@ -51,16 +59,19 @@ class UploadButton(Component):
         Parameters:
             label: Text to display on the button. Defaults to "Upload a File".
             value: File or list of files to upload by default.
-            every: If `value` is a callable, run the function 'every' number of seconds while the client connection is open. Has no effect otherwise. The event can be accessed (e.g. to cancel it) via this component's .load_event attribute.
+            every: Continously calls `value` to recalculate it if `value` is a function (has no effect otherwise). Can provide a Timer whose tick resets `value`, or a float that provides the regular interval for the reset Timer.
+            inputs: Components that are used as inputs to calculate `value` if `value` is a function (has no effect otherwise). `value` is recalculated any time the inputs change.
             variant: 'primary' for main call-to-action, 'secondary' for a more subdued style, 'stop' for a stop button.
             visible: If False, component will be hidden.
-            size: Size of the button. Can be "sm" or "lg".
-            scale: relative width compared to adjacent Components in a Row. For example, if Component A has scale=2, and Component B has scale=1, A will be twice as wide as B. Should be an integer.
+            size: size of the button. Can be "sm", "md", or "lg".
+            icon: URL or path to the icon file to display within the button. If None, no icon will be displayed.
+            scale: relative size compared to adjacent Components. For example if Components A and B are in a Row, and A has scale=2, and B has scale=1, A will be twice as wide as B. Should be an integer. scale applies in Rows, and to top-level Components in Blocks where fill_height=True.
             min_width: minimum pixel width, will wrap if not sufficient screen space to satisfy this value. If a certain scale value results in this Component being narrower than min_width, the min_width parameter will be respected first.
             interactive: If False, the UploadButton will be in a disabled state.
             elem_id: An optional string that is assigned as the id of this component in the HTML DOM. Can be used for targeting CSS styles.
             elem_classes: An optional list of strings that are assigned as the classes of this component in the HTML DOM. Can be used for targeting CSS styles.
             render: If False, component will not render be rendered in the Blocks context. Should be used if the intention is to assign event listeners now but render the component later.
+            key: if assigned, will be used to assume identity across a re-render. Components that have the same key across a re-render will have their value preserved.
             type: Type of value to be returned by component. "file" returns a temporary file object with the same base name as the uploaded file, whose full path can be retrieved by file_obj.name, "binary" returns an bytes object.
             file_count: if single, allows user to upload one file. If "multiple", user uploads multiple files. If "directory", user uploads all files in selected directory. Return type will be list for each file in case of "multiple" or "directory".
             file_types: List of type of files to be uploaded. "file" allows any file to be uploaded, "image" allows only image files to be uploaded, "audio" allows only audio files to be uploaded, "video" allows only video files to be uploaded, "text" allows only text files to be uploaded.
@@ -94,16 +105,18 @@ class UploadButton(Component):
         super().__init__(
             label=label,
             every=every,
+            inputs=inputs,
             visible=visible,
             elem_id=elem_id,
             elem_classes=elem_classes,
             render=render,
+            key=key,
             value=value,
             scale=scale,
             min_width=min_width,
             interactive=interactive,
         )
-        self.icon = self.move_resource_to_block_cache(icon)
+        self.icon = self.serve_static_file(icon)
 
     def api_info(self) -> dict[str, list[str]]:
         if self.file_count == "single":
@@ -111,7 +124,19 @@ class UploadButton(Component):
         else:
             return ListFiles.model_json_schema()
 
-    def example_inputs(self) -> Any:
+    def example_payload(self) -> Any:
+        if self.file_count == "single":
+            return handle_file(
+                "https://github.com/gradio-app/gradio/raw/main/test/test_files/sample_file.pdf"
+            )
+        else:
+            return [
+                handle_file(
+                    "https://github.com/gradio-app/gradio/raw/main/test/test_files/sample_file.pdf"
+                )
+            ]
+
+    def example_value(self) -> Any:
         if self.file_count == "single":
             return "https://github.com/gradio-app/gradio/raw/main/test/test_files/sample_file.pdf"
         else:
@@ -122,6 +147,12 @@ class UploadButton(Component):
     def _process_single_file(self, f: FileData) -> bytes | NamedString:
         file_name = f.path
         if self.type == "filepath":
+            if self.file_types and not client_utils.is_valid_file(
+                file_name, self.file_types
+            ):
+                raise Error(
+                    f"Invalid file type. Please upload a file that is one of these formats: {self.file_types}"
+                )
             file = tempfile.NamedTemporaryFile(delete=False, dir=self.GRADIO_CACHE)
             file.name = file_name
             return NamedString(file_name)
@@ -146,27 +177,45 @@ class UploadButton(Component):
         """
         if payload is None:
             return None
-
         if self.file_count == "single":
             if isinstance(payload, ListFiles):
                 return self._process_single_file(payload[0])
-            else:
-                return self._process_single_file(payload)
+            return self._process_single_file(payload)
+
+        if isinstance(payload, ListFiles):
+            return [self._process_single_file(f) for f in payload]  # type: ignore
+        return [self._process_single_file(payload)]  # type: ignore
+
+    def _download_files(self, value: str | list[str]) -> str | list[str]:
+        downloaded_files = []
+        if isinstance(value, list):
+            for file in value:
+                if client_utils.is_http_url_like(file):
+                    downloaded_file = processing_utils.save_url_to_cache(
+                        file, self.GRADIO_CACHE
+                    )
+                    downloaded_files.append(downloaded_file)
+                else:
+                    downloaded_files.append(file)
+            return downloaded_files
+        if client_utils.is_http_url_like(value):
+            downloaded_file = processing_utils.save_url_to_cache(
+                value, self.GRADIO_CACHE
+            )
+            return downloaded_file
         else:
-            if isinstance(payload, ListFiles):
-                return [self._process_single_file(f) for f in payload]  # type: ignore
-            else:
-                return [self._process_single_file(payload)]  # type: ignore
+            return value
 
     def postprocess(self, value: str | list[str] | None) -> ListFiles | FileData | None:
         """
         Parameters:
-            value: Expects a `str` filepath, or a `list[str]` of filepaths.
+            value: Expects a `str` filepath or URL, or a `list[str]` of filepaths/URLs.
         Returns:
             File information as a FileData object, or a list of FileData objects.
         """
         if value is None:
             return None
+        value = self._download_files(value)
         if isinstance(value, list):
             return ListFiles(
                 root=[

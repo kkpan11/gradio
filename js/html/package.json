@@ -1,6 +1,6 @@
 {
 	"name": "@gradio/html",
-	"version": "0.1.7",
+	"version": "0.6.3",
 	"description": "Gradio UI packages",
 	"type": "module",
 	"author": "",
@@ -10,11 +10,36 @@
 	"dependencies": {
 		"@gradio/atoms": "workspace:^",
 		"@gradio/statustracker": "workspace:^",
-		"@gradio/utils": "workspace:^"
+		"@gradio/utils": "workspace:^",
+		"@gradio/icons": "workspace:^"
+	},
+	"devDependencies": {
+		"@gradio/preview": "workspace:^"
 	},
 	"exports": {
-		".": "./Index.svelte",
-		"./example": "./Example.svelte",
-		"./package.json": "./package.json"
+		"./package.json": "./package.json",
+		".": {
+			"gradio": "./Index.svelte",
+			"svelte": "./dist/Index.svelte",
+			"types": "./dist/Index.svelte.d.ts"
+		},
+		"./example": {
+			"gradio": "./Example.svelte",
+			"svelte": "./dist/Example.svelte",
+			"types": "./dist/Example.svelte.d.ts"
+		},
+		"./base": {
+			"gradio": "./Index.svelte",
+			"svelte": "./dist/Index.svelte",
+			"types": "./dist/Index.svelte.d.ts"
+		}
+	},
+	"peerDependencies": {
+		"svelte": "^4.0.0"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/gradio-app/gradio.git",
+		"directory": "js/html"
 	}
 }

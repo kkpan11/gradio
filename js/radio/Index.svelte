@@ -15,6 +15,7 @@
 		change: never;
 		select: SelectData;
 		input: never;
+		clear_status: LoadingStatus;
 	}>;
 
 	export let label = gradio.i18n("radio.radio");
@@ -23,7 +24,6 @@
 	export let elem_classes: string[] = [];
 	export let visible = true;
 	export let value: string | null = null;
-	export let value_is_output = false;
 	export let choices: [string, string | number][] = [];
 	export let show_label = true;
 	export let container = false;
@@ -31,19 +31,19 @@
 	export let min_width: number | undefined = undefined;
 	export let loading_status: LoadingStatus;
 	export let interactive = true;
+	export let root: string;
 
 	function handle_change(): void {
 		gradio.dispatch("change");
-		if (!value_is_output) {
-			gradio.dispatch("input");
-		}
 	}
 
-	afterUpdate(() => {
-		value_is_output = false;
-	});
-	$: value, handle_change();
-
+	let old_value = value;
+	$: {
+		if (value !== old_value) {
+			old_value = value;
+			handle_change();
+		}
+	}
 	$: disabled = !interactive;
 </script>
 
@@ -60,9 +60,10 @@
 		autoscroll={gradio.autoscroll}
 		i18n={gradio.i18n}
 		{...loading_status}
+		on:clear_status={() => gradio.dispatch("clear_status", loading_status)}
 	/>
 
-	<BlockTitle {show_label} {info}>{label}</BlockTitle>
+	<BlockTitle {root} {show_label} {info}>{label}</BlockTitle>
 
 	<div class="wrap">
 		{#each choices as [display_value, internal_value], i (i)}
@@ -71,8 +72,10 @@
 				{internal_value}
 				bind:selected={value}
 				{disabled}
-				on:input={() =>
-					gradio.dispatch("select", { value: internal_value, index: i })}
+				on:input={() => {
+					gradio.dispatch("select", { value: internal_value, index: i });
+					gradio.dispatch("input");
+				}}
 			/>
 		{/each}
 	</div>

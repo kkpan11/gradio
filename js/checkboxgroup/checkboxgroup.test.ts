@@ -1,7 +1,7 @@
 import { test, describe, assert, afterEach, vi } from "vitest";
-import { cleanup, render } from "@gradio/tootils";
+import { cleanup, render } from "@self/tootils";
 import event from "@testing-library/user-event";
-import { setupi18n } from "../app/src/i18n";
+import { setupi18n } from "../core/src/i18n";
 
 import CheckboxGroup from "./Index.svelte";
 import type { LoadingStatus } from "@gradio/statustracker";
@@ -124,7 +124,7 @@ describe("Values", () => {
 	});
 
 	test("changing the component value updates the checkboxes", async () => {
-		const { getByLabelText, debug, component } = await render(CheckboxGroup, {
+		const { getByLabelText, component } = await render(CheckboxGroup, {
 			value: [],
 			label: "Dropdown",
 			choices: [
@@ -143,7 +143,6 @@ describe("Values", () => {
 		expect(item_three).not.toBeChecked();
 
 		component.value = [1, 3];
-
 		expect(item_one).toBeChecked();
 		expect(item_two).not.toBeChecked();
 		expect(item_three).toBeChecked();

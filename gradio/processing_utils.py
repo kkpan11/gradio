@@ -1,35 +1,129 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
+import ipaddress
 import json
 import logging
+import mimetypes
 import os
 import shutil
 import subprocess
 import tempfile
 import warnings
+from collections.abc import Awaitable, Callable, Coroutine
+from functools import lru_cache, wraps
 from io import BytesIO
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, TypeVar
+from urllib.parse import urlparse
 
+import aiofiles
 import httpx
 import numpy as np
+import safehttpx as sh
 from gradio_client import utils as client_utils
-from PIL import Image, ImageOps, PngImagePlugin
+from PIL import Image, ImageOps, ImageSequence, PngImagePlugin
 
-from gradio import wasm_utils
-from gradio.data_classes import FileData, GradioModel, GradioRootModel
-from gradio.utils import abspath
+from gradio import utils, wasm_utils
+from gradio.context import LocalContext
+from gradio.data_classes import FileData, GradioModel, GradioRootModel, JsonData
+from gradio.exceptions import Error, InvalidPathError
+from gradio.route_utils import API_PREFIX
+from gradio.utils import abspath, get_hash_seed, get_upload_folder, is_in_or_equal
 
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")  # Ignore pydub warning if ffmpeg is not installed
     from pydub import AudioSegment
 
+if wasm_utils.IS_WASM:
+    import pyodide.http  # type: ignore
+    import urllib3
+
+    # NOTE: In the Wasm env, we use urllib3 to make HTTP requests. See https://github.com/gradio-app/gradio/issues/6837.
+    class Urllib3ResponseSyncByteStream(httpx.SyncByteStream):
+        def __init__(self, response: urllib3.HTTPResponse) -> None:
+            self.response = response
+
+        def __iter__(self):
+            yield from self.response.stream(decode_content=True)
+
+    class Urllib3Transport(httpx.BaseTransport):
+        def __init__(self):
+            self.pool = urllib3.PoolManager()
+
+        def handle_request(self, request: httpx.Request) -> httpx.Response:
+            url = str(request.url)
+            method = str(request.method)
+            headers = dict(request.headers)
+            body = None if method in ["GET", "HEAD"] else request.read()
+
+            response = self.pool.request(
+                headers=headers,
+                method=method,
+                url=url,
+                body=body,
+                preload_content=False,  # Stream the content
+            )
+
+            # HTTPX's gzip decoder sometimes fails to decode the content in the Wasm env as https://github.com/gradio-app/gradio/pull/9333#issuecomment-2348048882,
+            # so we avoid it by removing the content-encoding header passed to httpx.Response,
+            # and handle the decoding in `Urllib3ResponseSyncByteStream.__iter__()` with `urllib3`'s implementation.
+            response_headers = response.headers.copy()
+            response_headers.discard("content-encoding")
+
+            return httpx.Response(
+                status_code=response.status,
+                headers=response_headers,
+                stream=Urllib3ResponseSyncByteStream(response),  # type: ignore
+            )
+
+    sync_transport = Urllib3Transport()
+
+    class PyodideHttpResponseAsyncByteStream(httpx.AsyncByteStream):
+        def __init__(self, response: pyodide.http.FetchResponse) -> None:
+            self.response = response
+
+        async def __aiter__(self):
+            yield await self.response.bytes()
+
+    class PyodideHttpTransport(httpx.AsyncBaseTransport):
+        async def handle_async_request(
+            self,
+            request: httpx.Request,
+        ) -> httpx.Response:
+            url = str(request.url)
+            method = request.method
+
+            headers = dict(request.headers)
+            # User-agent header is automatically set by the browser.
+            # More importantly, setting it causes an error on FireFox where a preflight request is made and it leads to a CORS error.
+            # Maybe related to https://bugzilla.mozilla.org/show_bug.cgi?id=1629921
+            del headers["user-agent"]
+
+            body = None if method in ["GET", "HEAD"] else await request.aread()
+            response = await pyodide.http.pyfetch(
+                url, method=method, headers=headers, body=body
+            )
+            return httpx.Response(
+                status_code=response.status,
+                headers=response.headers,
+                stream=PyodideHttpResponseAsyncByteStream(response),
+            )
+
+    async_transport = PyodideHttpTransport()
+else:
+    sync_transport = None
+    async_transport = None
+
+sync_client = httpx.Client(transport=sync_transport)
+
 log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from gradio.components.base import Component
+    from gradio.blocks import Block
+
 
 #########################
 # GENERAL
@@ -58,12 +152,18 @@ def extract_base64_data(x: str) -> str:
 #########################
 
 
-def encode_plot_to_base64(plt):
+def encode_plot_to_base64(plt, format: str = "png"):
+    fmt = format or "png"
     with BytesIO() as output_bytes:
-        plt.savefig(output_bytes, format="png")
+        plt.savefig(output_bytes, format=fmt)
         bytes_data = output_bytes.getvalue()
     base64_str = str(base64.b64encode(bytes_data), "utf-8")
-    return "data:image/png;base64," + base64_str
+    return f"data:image/{format or 'png'};base64,{base64_str}"
+
+
+def get_pil_exif_bytes(pil_image):
+    if "exif" in pil_image.info:
+        return pil_image.info["exif"]
 
 
 def get_pil_metadata(pil_image):
@@ -78,69 +178,76 @@ def get_pil_metadata(pil_image):
 
 def encode_pil_to_bytes(pil_image, format="png"):
     with BytesIO() as output_bytes:
-        pil_image.save(output_bytes, format, pnginfo=get_pil_metadata(pil_image))
+        if format.lower() == "gif":
+            frames = [frame.copy() for frame in ImageSequence.Iterator(pil_image)]
+            frames[0].save(
+                output_bytes,
+                format=format,
+                save_all=True,
+                append_images=frames[1:],
+                loop=0,
+            )
+        else:
+            if format.lower() == "png":
+                params = {"pnginfo": get_pil_metadata(pil_image)}
+            else:
+                exif = get_pil_exif_bytes(pil_image)
+                params = {"exif": exif} if exif else {}
+            pil_image.save(output_bytes, format, **params)
         return output_bytes.getvalue()
 
 
-def encode_pil_to_base64(pil_image):
-    bytes_data = encode_pil_to_bytes(pil_image)
-    base64_str = str(base64.b64encode(bytes_data), "utf-8")
-    return "data:image/png;base64," + base64_str
-
-
-def encode_array_to_base64(image_array):
-    with BytesIO() as output_bytes:
-        pil_image = Image.fromarray(_convert(image_array, np.uint8, force_copy=False))
-        pil_image.save(output_bytes, "PNG")
-        bytes_data = output_bytes.getvalue()
-    base64_str = str(base64.b64encode(bytes_data), "utf-8")
-    return "data:image/png;base64," + base64_str
+hash_seed = get_hash_seed().encode("utf-8")
 
 
 def hash_file(file_path: str | Path, chunk_num_blocks: int = 128) -> str:
-    sha1 = hashlib.sha1()
+    sha = hashlib.sha256()
+    sha.update(hash_seed)
     with open(file_path, "rb") as f:
-        for chunk in iter(lambda: f.read(chunk_num_blocks * sha1.block_size), b""):
-            sha1.update(chunk)
-    return sha1.hexdigest()
+        for chunk in iter(lambda: f.read(chunk_num_blocks * sha.block_size), b""):
+            sha.update(chunk)
+    return sha.hexdigest()
 
 
 def hash_url(url: str) -> str:
-    sha1 = hashlib.sha1()
-    sha1.update(url.encode("utf-8"))
-    return sha1.hexdigest()
+    sha = hashlib.sha256()
+    sha.update(hash_seed)
+    sha.update(url.encode("utf-8"))
+    return sha.hexdigest()
 
 
 def hash_bytes(bytes: bytes):
-    sha1 = hashlib.sha1()
-    sha1.update(bytes)
-    return sha1.hexdigest()
+    sha = hashlib.sha256()
+    sha.update(hash_seed)
+    sha.update(bytes)
+    return sha.hexdigest()
 
 
 def hash_base64(base64_encoding: str, chunk_num_blocks: int = 128) -> str:
-    sha1 = hashlib.sha1()
-    for i in range(0, len(base64_encoding), chunk_num_blocks * sha1.block_size):
-        data = base64_encoding[i : i + chunk_num_blocks * sha1.block_size]
-        sha1.update(data.encode("utf-8"))
-    return sha1.hexdigest()
+    sha = hashlib.sha256()
+    sha.update(hash_seed)
+    for i in range(0, len(base64_encoding), chunk_num_blocks * sha.block_size):
+        data = base64_encoding[i : i + chunk_num_blocks * sha.block_size]
+        sha.update(data.encode("utf-8"))
+    return sha.hexdigest()
 
 
 def save_pil_to_cache(
     img: Image.Image,
     cache_dir: str,
     name: str = "image",
-    format: Literal["png", "jpeg"] = "png",
+    format: str = "webp",
 ) -> str:
     bytes_data = encode_pil_to_bytes(img, format)
     temp_dir = Path(cache_dir) / hash_bytes(bytes_data)
     temp_dir.mkdir(exist_ok=True, parents=True)
     filename = str((temp_dir / f"{name}.{format}").resolve())
-    img.save(filename, pnginfo=get_pil_metadata(img))
+    (temp_dir / f"{name}.{format}").resolve().write_bytes(bytes_data)
     return filename
 
 
 def save_img_array_to_cache(
-    arr: np.ndarray, cache_dir: str, format: Literal["png", "jpeg"] = "png"
+    arr: np.ndarray, cache_dir: str, format: str = "webp"
 ) -> str:
     pil_image = Image.fromarray(_convert(arr, np.uint8, force_copy=False))
     return save_pil_to_cache(pil_image, cache_dir, format=format)
@@ -180,21 +287,121 @@ def save_file_to_cache(file_path: str | Path, cache_dir: str) -> str:
     return full_temp_file_path
 
 
-def save_url_to_cache(url: str, cache_dir: str) -> str:
-    """Downloads a file and makes a temporary file path for a copy if does not already
-    exist. Otherwise returns the path to the existing temp file."""
-    temp_dir = hash_url(url)
-    temp_dir = Path(cache_dir) / temp_dir
-    temp_dir.mkdir(exist_ok=True, parents=True)
-    name = client_utils.strip_invalid_filename_characters(Path(url).name)
-    full_temp_file_path = str(abspath(temp_dir / name))
+# Always return these URLs as is, without checking to see if they resolve
+# to an internal IP address. This is because Hugging Face uses DNS splitting,
+# which means that requests from HF Spaces to HF Datasets or HF Models
+# may resolve to internal IP addresses even if they are publicly accessible.
+PUBLIC_HOSTNAME_WHITELIST = ["hf.co", "huggingface.co"]
 
-    if not Path(full_temp_file_path).exists():
-        with httpx.stream("GET", url) as r, open(full_temp_file_path, "wb") as f:
-            for chunk in r.iter_raw():
-                f.write(chunk)
+
+def is_public_ip(ip: str) -> bool:
+    try:
+        ip_obj = ipaddress.ip_address(ip)
+        return not (
+            ip_obj.is_private
+            or ip_obj.is_loopback
+            or ip_obj.is_link_local
+            or ip_obj.is_multicast
+            or ip_obj.is_reserved
+        )
+    except ValueError:
+        return False
+
+
+T = TypeVar("T")
+
+
+def lru_cache_async(maxsize: int = 128):
+    def decorator(
+        async_func: Callable[..., Coroutine[Any, Any, T]],
+    ) -> Callable[..., Awaitable[T]]:
+        @lru_cache(maxsize=maxsize)
+        @wraps(async_func)
+        def wrapper(*args: Any, **kwargs: Any) -> Awaitable[T]:
+            return asyncio.create_task(async_func(*args, **kwargs))
+
+        return wrapper
+
+    return decorator
+
+
+async def async_ssrf_protected_download(url: str, cache_dir: str) -> str:
+    temp_dir = Path(cache_dir) / hash_url(url)
+    temp_dir.mkdir(exist_ok=True, parents=True)
+
+    parsed_url = urlparse(url)
+    base_path = parsed_url.path.rstrip("/")
+    filename = (
+        client_utils.strip_invalid_filename_characters(Path(base_path).name) or "file"
+    )
+
+    full_temp_file_path = str(abspath(temp_dir / filename))
+    if Path(full_temp_file_path).exists():
+        return full_temp_file_path
+
+    hostname = parsed_url.hostname
+    response = await sh.get(
+        url, domain_whitelist=PUBLIC_HOSTNAME_WHITELIST, _transport=async_transport
+    )
+
+    while response.is_redirect:
+        redirect_url = response.headers["Location"]
+        redirect_parsed = urlparse(redirect_url)
+
+        if not redirect_parsed.hostname:
+            redirect_url = f"{parsed_url.scheme}://{hostname}{redirect_url}"
+
+        response = await sh.get(
+            redirect_url,
+            domain_whitelist=PUBLIC_HOSTNAME_WHITELIST,
+            _transport=async_transport,
+        )
+
+    if response.status_code != 200:
+        raise Exception(f"Failed to download file. Status code: {response.status_code}")
+
+    async with aiofiles.open(full_temp_file_path, "wb") as f:
+        async for chunk in response.aiter_bytes():
+            await f.write(chunk)
 
     return full_temp_file_path
+
+
+def unsafe_download(url: str, cache_dir: str) -> str:
+    temp_dir = Path(cache_dir) / hash_url(url)
+    temp_dir.mkdir(exist_ok=True, parents=True)
+    filename = client_utils.strip_invalid_filename_characters(Path(url).name)
+    full_temp_file_path = str(abspath(temp_dir / filename))
+
+    with (
+        sync_client.stream("GET", url, follow_redirects=True) as r,
+        open(full_temp_file_path, "wb") as f,
+    ):
+        for chunk in r.iter_raw():
+            f.write(chunk)
+
+    # print path and file size
+    print(
+        f"Downloaded {full_temp_file_path} ({os.path.getsize(full_temp_file_path)} bytes)"
+    )
+    log.info(
+        f"Downloaded {full_temp_file_path} ({os.path.getsize(full_temp_file_path)} bytes)"
+    )
+
+    return full_temp_file_path
+
+
+def ssrf_protected_download(url: str, cache_dir: str) -> str:
+    if wasm_utils.IS_WASM:
+        return unsafe_download(url, cache_dir)
+    else:
+        return client_utils.synchronize_async(
+            async_ssrf_protected_download, url, cache_dir
+        )
+
+
+# Custom components created with versions of gradio < 5.0 may be using the processing_utils.save_url_to_cache method, so we alias to ssrf_protected_download to preserve backwards-compatibility
+save_url_to_cache = ssrf_protected_download
 
 
 def save_base64_to_cache(
@@ -226,7 +433,7 @@ def save_base64_to_cache(
 
 
 def move_resource_to_block_cache(
-    url_or_file_path: str | Path | None, block: Component
+    url_or_file_path: str | Path | None, block: Block
 ) -> str | None:
     """This method has been replaced by Block.move_resource_to_block_cache(), but is
     left here for backwards compatibility for any custom components created in Gradio 4.2.0 or earlier.
@@ -234,15 +441,38 @@ def move_resource_to_block_cache(
     return block.move_resource_to_block_cache(url_or_file_path)
 
 
-def move_files_to_cache(data: Any, block: Component, postprocess: bool = False):
-    """Move files to cache and replace the file path with the cache path.
+def check_all_files_in_cache(data: JsonData):
+    def _in_cache(d: dict):
+        if (
+            (path := d.get("path", ""))
+            and not client_utils.is_http_url_like(path)
+            and not is_in_or_equal(path, get_upload_folder())
+        ):
+            raise Error(
+                f"File {path} is not in the cache folder and cannot be accessed."
+            )
 
-    Runs after .postprocess(), after .process_example(), and before .preprocess().
+    client_utils.traverse(data, _in_cache, client_utils.is_file_obj)
+
+
+def move_files_to_cache(
+    data: Any,
+    block: Block,
+    postprocess: bool = False,
+    check_in_upload_folder=False,
+    keep_in_cache=False,
+):
+    """Move any files in `data` to cache and (optionally), adds URL prefixes (/file=...) needed to access the cached file.
+    Also handles the case where the file is on an external Gradio app (/proxy=...).
+
+    Runs after .postprocess() and before .preprocess().
 
     Args:
         data: The input or output data for a component. Can be a dictionary or a dataclass
-        block: The component
+        block: The component whose data is being processed
         postprocess: Whether its running from postprocessing
+        check_in_upload_folder: If True, instead of moving the file to cache, checks if the file is in already in cache (exception if not).
+        keep_in_cache: If True, the file will not be deleted from cache when the server is shut down.
     """
 
     def _move_to_cache(d: dict):
@@ -251,18 +481,177 @@ def move_files_to_cache(data: Any, block: Component, postprocess: bool = False):
         # postprocess, it means the component can display a URL
         # without it being served from the gradio server
         # This makes it so that the URL is not downloaded and speeds up event processing
-        if payload.url and postprocess:
-            temp_file_path = payload.url
+        if payload.url and postprocess and client_utils.is_http_url_like(payload.url):
+            payload.path = payload.url
+        elif utils.is_static_file(payload):
+            pass
+        elif not block.proxy_url:
+            # If the file is on a remote server, do not move it to cache.
+            if not client_utils.is_http_url_like(payload.path):
+                _check_allowed(payload.path, check_in_upload_folder)
+            if not payload.is_stream:
+                temp_file_path = block.move_resource_to_block_cache(payload.path)
+                if temp_file_path is None:
+                    raise ValueError("Did not determine a file path for the resource.")
+                payload.path = temp_file_path
+                if keep_in_cache:
+                    block.keep_in_cache.add(payload.path)
+
+        url_prefix = (
+            f"{API_PREFIX}/stream/" if payload.is_stream else f"{API_PREFIX}/file="
+        )
+        if block.proxy_url:
+            proxy_url = block.proxy_url.rstrip("/")
+            url = f"{API_PREFIX}/proxy={proxy_url}{url_prefix}{payload.path}"
+        elif client_utils.is_http_url_like(payload.path) or payload.path.startswith(
+            f"{url_prefix}"
+        ):
+            url = f"{payload.path}"
         else:
-            temp_file_path = move_resource_to_block_cache(payload.path, block)
-        assert temp_file_path is not None
-        payload.path = temp_file_path
+            url = f"{url_prefix}{payload.path}"
+        payload.url = url
+
         return payload.model_dump()
 
     if isinstance(data, (GradioRootModel, GradioModel)):
         data = data.model_dump()
 
-    return client_utils.traverse(data, _move_to_cache, client_utils.is_file_obj)
+    return client_utils.traverse(
+        data, _move_to_cache, client_utils.is_file_obj_with_meta
+    )
+
+
+def _check_allowed(path: str | Path, check_in_upload_folder: bool):
+    blocks = LocalContext.blocks.get()
+    if blocks is None or not blocks.has_launched:
+        return
+
+    abs_path = utils.abspath(path)
+
+    created_paths = [utils.get_upload_folder()]
+    # if check_in_upload_folder=True, we are running this during pre-process
+    # in which case only files in the upload_folder (cache_dir) are accepted
+    if check_in_upload_folder:
+        allowed_paths = []
+    else:
+        allowed_paths = blocks.allowed_paths + [os.getcwd(), tempfile.gettempdir()]
+    allowed, reason = utils.is_allowed_file(
+        abs_path,
+        blocked_paths=blocks.blocked_paths,
+        allowed_paths=allowed_paths,
+        created_paths=created_paths,
+    )
+    if not allowed:
+        msg = f"Cannot move {abs_path} to the gradio cache dir because "
+        if reason == "in_blocklist":
+            msg += f"it is located in one of the blocked_paths ({', '.join(blocks.blocked_paths)})."
+        elif check_in_upload_folder:
+            msg += "it was not uploaded by a user."
+        else:
+            msg += "it was not created by the application or it is not "
+            msg += "located in either the current working directory or your system's temp directory. "
+            msg += "To fix this error, please ensure your function returns files located in either "
+            msg += f"the current working directory ({os.getcwd()}), your system's temp directory ({tempfile.gettempdir()}) "
+            msg += f"or add {str(abs_path.parent)} to the allowed_paths parameter of launch()."
+        raise InvalidPathError(msg)
+    if (
+        utils.is_in_or_equal(abs_path, os.getcwd())
+        and abs_path.name.startswith(".")
+        and not any(
+            is_in_or_equal(path, allowed_path) for allowed_path in blocks.allowed_paths
+        )
+    ):
+        raise InvalidPathError(
+            "Dotfiles located in the temporary directory cannot be moved to the cache for security reasons. "
+            "If you'd like to specifically allow this file to be served, you can add it to the allowed_paths parameter of launch()."
+        )
+
+
+async def async_move_files_to_cache(
+    data: Any,
+    block: Block,
+    postprocess: bool = False,
+    check_in_upload_folder=False,
+    keep_in_cache=False,
+) -> dict:
+    """Move any files in `data` to cache and (optionally), adds URL prefixes (/file=...) needed to access the cached file.
+    Also handles the case where the file is on an external Gradio app (/proxy=...).
+
+    Runs after .postprocess() and before .preprocess().
+
+    Args:
+        data: The input or output data for a component. Can be a dictionary or a dataclass
+        block: The component whose data is being processed
+        postprocess: Whether its running from postprocessing
+        check_in_upload_folder: If True, instead of moving the file to cache, checks if the file is in already in cache (exception if not).
+        keep_in_cache: If True, the file will not be deleted from cache when the server is shut down.
+    """
+
+    def _mark_svg_as_safe(payload: FileData):
+        # If the app has not launched, this path can be considered an "allowed path"
+        # This is mainly so that svg files can be displayed inline for button/chatbot icons
+        if (
+            (blocks := LocalContext.blocks.get()) is None or not blocks.is_running
+        ) and (mimetypes.guess_type(payload.path)[0] == "image/svg+xml"):
+            utils.set_static_paths([payload.path])
+
+    async def _move_to_cache(d: dict):
+        payload = FileData(**d)
+        # If the gradio app developer is returning a URL from
+        # postprocess, it means the component can display a URL
+        # without it being served from the gradio server
+        # This makes it so that the URL is not downloaded and speeds up event processing
+        if payload.url and postprocess and client_utils.is_http_url_like(payload.url):
+            payload.path = payload.url
+        elif utils.is_static_file(payload):
+            pass
+        elif not block.proxy_url:
+            # If the file is on a remote server, do not move it to cache.
+            if not client_utils.is_http_url_like(payload.path):
+                _check_allowed(payload.path, check_in_upload_folder)
+            if not payload.is_stream:
+                temp_file_path = await block.async_move_resource_to_block_cache(
+                    payload.path
+                )
+                if temp_file_path is None:
+                    raise ValueError("Did not determine a file path for the resource.")
+                payload.path = temp_file_path
+                if keep_in_cache:
+                    block.keep_in_cache.add(payload.path)
+
+        url_prefix = (
+            f"{API_PREFIX}/stream/" if payload.is_stream else f"{API_PREFIX}/file="
+        )
+        if block.proxy_url:
+            proxy_url = block.proxy_url.rstrip("/")
+            url = f"{API_PREFIX}/proxy={proxy_url}{url_prefix}{payload.path}"
+        elif client_utils.is_http_url_like(payload.path) or payload.path.startswith(
+            f"{url_prefix}"
+        ):
+            url = payload.path
+        else:
+            url = f"{url_prefix}{payload.path}"
+        payload.url = url
+        _mark_svg_as_safe(payload)
+        return payload.model_dump()
+
+    if isinstance(data, (GradioRootModel, GradioModel)):
+        data = data.model_dump()
+    return await client_utils.async_traverse(
+        data, _move_to_cache, client_utils.is_file_obj_with_meta
+    )
+
+
+def add_root_url(data: dict | list, root_url: str, previous_root_url: str | None):
+    def _add_root_url(file_dict: dict):
+        if previous_root_url and file_dict["url"].startswith(previous_root_url):
+            file_dict["url"] = file_dict["url"][len(previous_root_url) :]
+        elif client_utils.is_http_url_like(file_dict["url"]):
+            return file_dict
+        file_dict["url"] = f'{root_url}{file_dict["url"]}'
+        return file_dict
+
+    return client_utils.traverse(data, _add_root_url, client_utils.is_file_obj_with_url)
 
 
 def resize_and_crop(img, size, crop_type="center"):
@@ -297,7 +686,9 @@ def resize_and_crop(img, size, crop_type="center"):
 ##################
 
 
-def audio_from_file(filename, crop_min=0, crop_max=100):
+def audio_from_file(
+    filename: str, crop_min: float = 0, crop_max: float = 100
+) -> tuple[int, np.ndarray]:
     try:
         audio = AudioSegment.from_file(filename)
     except FileNotFoundError as e:
@@ -310,6 +701,12 @@ def audio_from_file(filename, crop_min=0, crop_max=100):
             else ""
         )
         raise RuntimeError(msg) from e
+    except OSError as e:
+        if wasm_utils.IS_WASM:
+            raise wasm_utils.WasmUnsupportedError(
+                "Audio format conversion is not supported in the Wasm mode."
+            ) from e
+        raise e
     if crop_min != 0 or crop_max != 100:
         audio_start = len(audio) * crop_min / 100
         audio_end = len(audio) * crop_max / 100
@@ -323,6 +720,10 @@ def audio_from_file(filename, crop_min=0, crop_max=100):
 def audio_to_file(sample_rate, data, filename, format="wav"):
     if format == "wav":
         data = convert_to_16_bit_wav(data)
+    elif wasm_utils.IS_WASM:
+        raise wasm_utils.WasmUnsupportedError(
+            "Audio formats other than .wav are not supported in the Wasm mode."
+        )
     audio = AudioSegment(
         data.tobytes(),
         frame_rate=sample_rate,
@@ -418,13 +819,16 @@ def _convert(image, dtype, force_copy=False, uniform=False):
     dtype_range = {
         bool: (False, True),
         np.bool_: (False, True),
-        np.bool8: (False, True),  # type: ignore
         float: (-1, 1),
-        np.float_: (-1, 1),
         np.float16: (-1, 1),
         np.float32: (-1, 1),
         np.float64: (-1, 1),
     }
+
+    if hasattr(np, "float_"):
+        dtype_range[np.float_] = dtype_range[float]  # type: ignore
+    if hasattr(np, "bool8"):
+        dtype_range[np.bool8] = dtype_range[np.bool_]  # type: ignore
 
     def _dtype_itemsize(itemsize, *dtypes):
         """Return first of `dtypes` with itemsize greater than `itemsize`
@@ -527,7 +931,13 @@ def _convert(image, dtype, force_copy=False, uniform=False):
 
     image = np.asarray(image)
     dtypeobj_in = image.dtype
-    dtypeobj_out = np.dtype("float64") if dtype is np.floating else np.dtype(dtype)
+    dtypeobj_out = (
+        dtypeobj_in
+        if dtype is np.floating
+        else np.dtype("float64")
+        if dtype is float
+        else np.dtype(dtype)
+    )
     dtype_in = dtypeobj_in.type
     dtype_out = dtypeobj_out.type
     kind_in = dtypeobj_in.kind
@@ -544,7 +954,12 @@ def _convert(image, dtype, force_copy=False, uniform=False):
     #   is a subclass of that type (e.g. `np.floating` will allow
     #   `float32` and `float64` arrays through)
 
-    if np.issubdtype(dtype_in, np.obj2sctype(dtype)):
+    if hasattr(np, "obj2sctype"):
+        is_subdtype = np.issubdtype(dtype_in, np.obj2sctype(dtype))  # type: ignore
+    else:
+        is_subdtype = np.issubdtype(dtype_in, dtypeobj_out.type)
+
+    if is_subdtype:
         if force_copy:
             image = image.copy()
         return image

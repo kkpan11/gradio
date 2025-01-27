@@ -24,7 +24,14 @@
 	export let min_width: number | undefined = undefined;
 	export let gradio: Gradio<{
 		change: never;
+		clear_status: LoadingStatus;
 	}>;
+	export let open = false;
+	export let theme_mode: "system" | "light" | "dark";
+	export let show_indices: boolean;
+	export let height: number | string | undefined;
+	export let min_height: number | string | undefined;
+	export let max_height: number | string | undefined;
 
 	$: {
 		if (value !== old_value) {
@@ -32,6 +39,8 @@
 			gradio.dispatch("change");
 		}
 	}
+
+	let label_height = 0;
 </script>
 
 <Block
@@ -43,22 +52,30 @@
 	{scale}
 	{min_width}
 	padding={false}
+	allow_overflow={true}
+	overflow_behavior="auto"
+	{height}
+	{min_height}
+	{max_height}
 >
-	{#if label}
-		<BlockLabel
-			Icon={JSONIcon}
-			{show_label}
-			{label}
-			float={false}
-			disable={container === false}
-		/>
-	{/if}
+	<div bind:clientHeight={label_height}>
+		{#if label}
+			<BlockLabel
+				Icon={JSONIcon}
+				{show_label}
+				{label}
+				float={false}
+				disable={container === false}
+			/>
+		{/if}
+	</div>
 
 	<StatusTracker
 		autoscroll={gradio.autoscroll}
 		i18n={gradio.i18n}
 		{...loading_status}
+		on:clear_status={() => gradio.dispatch("clear_status", loading_status)}
 	/>
 
-	<JSON {value} />
+	<JSON {value} {open} {theme_mode} {show_indices} {label_height} />
 </Block>

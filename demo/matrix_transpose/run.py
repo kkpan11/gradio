@@ -2,14 +2,12 @@ import numpy as np
 
 import gradio as gr
 
-
 def transpose(matrix):
     return matrix.T
 
-
 demo = gr.Interface(
     transpose,
-    gr.Dataframe(type="numpy", datatype="number", row_count=5, col_count=3),
+    gr.Dataframe(type="numpy", datatype="number", row_count=5, col_count=3, show_fullscreen_button=True),
     "numpy",
     examples=[
         [np.zeros((3, 3)).tolist()],

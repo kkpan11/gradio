@@ -6,15 +6,19 @@ transcriber = pipeline("automatic-speech-recognition", model="openai/whisper-bas
 
 def transcribe(audio):
     sr, y = audio
+    
+    # Convert to mono if stereo
+    if y.ndim > 1:
+        y = y.mean(axis=1)
+        
     y = y.astype(np.float32)
     y /= np.max(np.abs(y))
 
-    return transcriber({"sampling_rate": sr, "raw": y})["text"]
-
+    return transcriber({"sampling_rate": sr, "raw": y})["text"]  # type: ignore
 
 demo = gr.Interface(
     transcribe,
-    gr.Audio(sources=["microphone"]),
+    gr.Audio(sources="microphone"),
     "text",
 )
 

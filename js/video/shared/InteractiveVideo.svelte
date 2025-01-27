@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { createEventDispatcher } from "svelte";
 	import { Upload, ModifyUpload } from "@gradio/upload";
-	import type { FileData } from "@gradio/client";
+	import type { FileData, Client } from "@gradio/client";
 	import { BlockLabel } from "@gradio/atoms";
 	import { Webcam } from "@gradio/image";
 	import { Video } from "@gradio/icons";
@@ -28,6 +28,14 @@
 	export let i18n: I18nFormatter;
 	export let active_source: "webcam" | "upload" = "webcam";
 	export let handle_reset_value: () => void = () => {};
+	export let max_file_size: number | null = null;
+	export let upload: Client["upload"];
+	export let stream_handler: Client["stream"];
+	export let loop: boolean;
+	export let uploading = false;
+	export let webcam_constraints: { [key: string]: any } | null = null;
+
+	let has_change_history = false;
 
 	const dispatch = createEventDispatcher<{
 		change: FileData | null;
@@ -55,6 +63,7 @@
 	}
 
 	function handle_change(video: FileData): void {
+		has_change_history = true;
 		dispatch("change", video);
 	}
 
@@ -75,10 +84,14 @@
 			{#if active_source === "upload"}
 				<Upload
 					bind:dragging
+					bind:uploading
 					filetype="video/x-m4v,video/*"
 					on:load={handle_load}
+					{max_file_size}
 					on:error={({ detail }) => dispatch("error", detail)}
 					{root}
+					{upload}
+					{stream_handler}
 				>
 					<slot />
 				</Upload>
@@ -87,45 +100,49 @@
 					{root}
 					{mirror_webcam}
 					{include_audio}
+					{webcam_constraints}
 					mode="video"
 					on:error
 					on:capture={handle_capture}
 					on:start_recording
 					on:stop_recording
 					{i18n}
+					{upload}
+					stream_every={1}
 				/>
 			{/if}
 		</div>
-	{:else}
-		<ModifyUpload
-			{i18n}
-			on:clear={handle_clear}
-			download={show_download_button ? value.url : null}
-		/>
-		{#if playable()}
-			{#key value?.url}
-				<Player
-					{root}
-					interactive
-					{autoplay}
-					src={value.url}
-					subtitle={subtitle?.url}
-					on:play
-					on:pause
-					on:stop
-					on:end
-					mirror={mirror_webcam && active_source === "webcam"}
-					{label}
-					{handle_change}
-					{handle_reset_value}
-				/>
-			{/key}
-		{:else if value.size}
-			<div class="file-name">{value.orig_name || value.url}</div>
-			<div class="file-size">
-				{prettyBytes(value.size)}
-			</div>
-		{/if}
+	{:else if playable()}
+		{#key value?.url}
+			<Player
+				{upload}
+				{root}
+				interactive
+				{autoplay}
+				src={value.url}
+				subtitle={subtitle?.url}
+				is_stream={false}
+				on:play
+				on:pause
+				on:stop
+				on:end
+				mirror={mirror_webcam && active_source === "webcam"}
+				{label}
+				{handle_change}
+				{handle_reset_value}
+				{loop}
+				{value}
+				{i18n}
+				{show_download_button}
+				{handle_clear}
+				{has_change_history}
+			/>
+		{/key}
+	{:else if value.size}
+		<div class="file-name">{value.orig_name || value.url}</div>
+		<div class="file-size">
+			{prettyBytes(value.size)}
+		</div>
 	{/if}
 
 	<SelectSource {sources} bind:active_source {handle_clear} />
@@ -145,6 +162,7 @@
 
 	.upload-container {
 		height: 100%;
+		width: 100%;
 	}
 
 	.video-container {

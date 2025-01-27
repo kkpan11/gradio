@@ -1,9 +1,26 @@
 <script lang="ts">
-	export let label = "";
+	import { createEventDispatcher } from "svelte";
+	const dispatch = createEventDispatcher<{
+		expand: void;
+		collapse: void;
+	}>();
+
 	export let open = true;
+	export let label = "";
 </script>
 
-<button on:click={() => (open = !open)} class="label-wrap" class:open>
+<button
+	on:click={() => {
+		open = !open;
+		if (open) {
+			dispatch("expand");
+		} else {
+			dispatch("collapse");
+		}
+	}}
+	class="label-wrap"
+	class:open
+>
 	<span>{label}</span>
 	<span style:transform={open ? "rotate(0)" : "rotate(90deg)"} class="icon">
 		▼
@@ -23,6 +40,7 @@
 		justify-content: space-between;
 		cursor: pointer;
 		width: var(--size-full);
+		color: var(--accordion-text-color);
 	}
 	.label-wrap.open {
 		margin-bottom: var(--size-2);

@@ -20,6 +20,7 @@ class TestEvent:
 
             img.clear(fn_img_cleared, [], [])
 
+        assert "dependencies" in demo.config
         assert demo.config["dependencies"][0]["targets"][0][1] == "clear"
 
     def test_event_data(self):
@@ -36,7 +37,7 @@ class TestEvent:
         client = TestClient(app)
 
         resp = client.post(
-            f"{demo.local_url}run/predict",
+            f"{demo.local_api_url}run/predict",
             json={"fn_index": 0, "data": [], "event_data": {"index": 1, "value": None}},
         )
         assert resp.status_code == 200
@@ -66,6 +67,7 @@ class TestEvent:
             txt0.submit(lambda x: x, txt0, txt0)
             child.render()
 
+        assert "dependencies" in parent.config
         assert parent.config["dependencies"][1]["trigger_after"] is None
         assert parent.config["dependencies"][2]["trigger_after"] == 1
         assert parent.config["dependencies"][3]["trigger_after"] == 2
@@ -99,6 +101,7 @@ class TestEvent:
             def sum(a, b, c):
                 return a + b + c
 
+        assert "dependencies" in demo.config
         assert demo.config["dependencies"][0]["targets"] == [
             (name._id, "submit"),
             (greet_btn._id, "click"),
@@ -108,6 +111,7 @@ class TestEvent:
             (num1._id, "change"),
             (num2._id, "change"),
             (num3._id, "change"),
+            (0, "load"),
         ]
 
     def test_load_chaining(self):
@@ -124,6 +128,7 @@ class TestEvent:
                 increment, inputs=None, outputs=out
             )
 
+        assert "dependencies" in demo.config
         assert demo.config["dependencies"][0]["targets"][0][1] == "load"
         assert demo.config["dependencies"][0]["trigger_after"] is None
         assert demo.config["dependencies"][1]["targets"][0][1] == "then"
@@ -145,7 +150,7 @@ class TestEvent:
 
         with gr.Blocks() as demo2:
             demo.render()
-
+        assert "dependencies" in demo2.config
         assert demo2.config["dependencies"][0]["targets"][0][1] == "load"
         assert demo2.config["dependencies"][0]["trigger_after"] is None
         assert demo2.config["dependencies"][1]["targets"][0][1] == "then"
@@ -180,6 +185,21 @@ def test_event_pyi_file_matches_source_code():
     assert segment
     sig = inspect.signature(gr.Button.click)
     for param in sig.parameters.values():
-        if param.name == "block":
+        if param.name in ["block", "time_limit", "stream_every", "like_user_message"]:
             continue
         assert param.name in segment
+
+    code = (
+        Path(__file__).parent / ".." / "gradio" / "components" / "image.pyi"
+    ).read_text()
+    mod = ast.parse(code)
+    segment = None
+    for node in ast.walk(mod):
+        if isinstance(node, ast.FunctionDef) and node.name == "stream":
+            segment = ast.get_source_segment(code, node)
+
+    # This would fail if Image no longer has a stream method
+    assert segment
+    sig = inspect.signature(gr.Image.stream)
+    for param in ["time_limit", "stream_every"]:
+        assert param in segment

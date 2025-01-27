@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from "svelte";
 	import { Music } from "@gradio/icons";
-	import type { I18nFormatter } from "@gradio/utils";
+	import { format_time, type I18nFormatter } from "@gradio/utils";
 	import WaveSurfer from "wavesurfer.js";
 	import { skip_audio, process_audio } from "../shared/utils";
 	import WaveformControls from "../shared/WaveformControls.svelte";
@@ -10,6 +10,8 @@
 	import type { FileData } from "@gradio/client";
 	import type { WaveformOptions } from "../shared/types";
 	import { createEventDispatcher } from "svelte";
+
+	import Hls from "hls.js";
 
 	export let value: null | FileData = null;
 	$: url = value?.url;
@@ -25,6 +27,7 @@
 	export let waveform_settings: Record<string, any>;
 	export let waveform_options: WaveformOptions;
 	export let mode = "";
+	export let loop: boolean;
 	export let handle_reset_value: () => void = () => {};
 
 	let container: HTMLDivElement;
@@ -38,6 +41,9 @@
 	let trimDuration = 0;
 
 	let show_volume_slider = false;
+	let audio_player: HTMLAudioElement;
+
+	let stream_active = false;
 
 	const dispatch = createEventDispatcher<{
 		stop: undefined;
@@ -45,14 +51,11 @@
 		pause: undefined;
 		edit: undefined;
 		end: undefined;
+		load: undefined;
 	}>();
 
-	const formatTime = (seconds: number): string => {
-		const minutes = Math.floor(seconds / 60);
-		const secondsRemainder = Math.round(seconds) % 60;
-		const paddedSeconds = `0${secondsRemainder}`.slice(-2);
-		return `${minutes}:${paddedSeconds}`;
-	};
+	$: use_waveform =
+		waveform_options.show_recording_waveform && !value?.is_stream;
 
 	const create_waveform = (): void => {
 		waveform = WaveSurfer.create({
@@ -66,7 +69,7 @@
 		});
 	};
 
-	$: if (container !== undefined) {
+	$: if (use_waveform && container !== undefined && container !== null) {
 		if (waveform !== undefined) waveform.destroy();
 		container.innerHTML = "";
 		create_waveform();
@@ -75,13 +78,13 @@
 
 	$: waveform?.on("decode", (duration: any) => {
 		audio_duration = duration;
-		durationRef && (durationRef.textContent = formatTime(duration));
+		durationRef && (durationRef.textContent = format_time(duration));
 	});
 
 	$: waveform?.on(
 		"timeupdate",
 		(currentTime: any) =>
-			timeRef && (timeRef.textContent = formatTime(currentTime))
+			timeRef && (timeRef.textContent = format_time(currentTime))
 	);
 
 	$: waveform?.on("ready", () => {
@@ -93,8 +96,12 @@
 	});
 
 	$: waveform?.on("finish", () => {
-		playing = false;
-		dispatch("stop");
+		if (loop) {
+			waveform?.play();
+		} else {
+			playing = false;
+			dispatch("stop");
+		}
 	});
 	$: waveform?.on("pause", () => {
 		playing = false;
@@ -103,6 +110,10 @@
 	$: waveform?.on("play", () => {
 		playing = true;
 		dispatch("play");
+	});
+
+	$: waveform?.on("load", () => {
+		dispatch("load");
 	});
 
 	const handle_trim_audio = async (
@@ -126,13 +137,64 @@
 	};
 
 	async function load_audio(data: string): Promise<void> {
+		stream_active = false;
 		await resolve_wasm_src(data).then((resolved_src) => {
 			if (!resolved_src || value?.is_stream) return;
-			return waveform?.load(resolved_src);
+			if (waveform_options.show_recording_waveform) {
+				waveform?.load(resolved_src);
+			} else if (audio_player) {
+				audio_player.src = resolved_src;
+			}
 		});
 	}
 
 	$: url && load_audio(url);
+
+	function load_stream(value: FileData | null): void {
+		if (!value || !value.is_stream || !value.url) return;
+		if (!audio_player) return;
+		if (Hls.isSupported() && !stream_active) {
+			// Set config to start playback after 1 second of data received
+			const hls = new Hls({
+				maxBufferLength: 1,
+				maxMaxBufferLength: 1,
+				lowLatencyMode: true
+			});
+			hls.loadSource(value.url);
+			hls.attachMedia(audio_player);
+			hls.on(Hls.Events.MANIFEST_PARSED, function () {
+				if (waveform_settings.autoplay) audio_player.play();
+			});
+			hls.on(Hls.Events.ERROR, function (event, data) {
+				console.error("HLS error:", event, data);
+				if (data.fatal) {
+					switch (data.type) {
+						case Hls.ErrorTypes.NETWORK_ERROR:
+							console.error(
+								"Fatal network error encountered, trying to recover"
+							);
+							hls.startLoad();
+							break;
+						case Hls.ErrorTypes.MEDIA_ERROR:
+							console.error("Fatal media error encountered, trying to recover");
+							hls.recoverMediaError();
+							break;
+						default:
+							console.error("Fatal error, cannot recover");
+							hls.destroy();
+							break;
+					}
+				}
+			});
+			stream_active = true;
+		} else if (!stream_active) {
+			audio_player.src = value.url;
+			if (waveform_settings.autoplay) audio_player.play();
+			stream_active = true;
+		}
+	}
+
+	$: load_stream(value);
 
 	onMount(() => {
 		window.addEventListener("keydown", (e) => {
@@ -146,55 +208,60 @@
 	});
 </script>
 
+<audio
+	class="standard-player"
+	class:hidden={use_waveform}
+	controls
+	autoplay={waveform_settings.autoplay}
+	on:load
+	bind:this={audio_player}
+	on:ended={() => dispatch("stop")}
+	on:play={() => dispatch("play")}
+/>
 {#if value === null}
 	<Empty size="small">
 		<Music />
 	</Empty>
-{:else if value.is_stream}
-	<audio
-		class="standard-player"
-		src={value.url}
-		controls
-		autoplay={waveform_settings.autoplay}
-	/>
-{:else}
+{:else if use_waveform}
 	<div
 		class="component-wrapper"
 		data-testid={label ? "waveform-" + label : "unlabelled-audio"}
 	>
 		<div class="waveform-container">
-			<div id="waveform" bind:this={container} />
+			<div
+				id="waveform"
+				bind:this={container}
+				style:height={container ? null : "58px"}
+			/>
 		</div>
 
 		<div class="timestamps">
 			<time bind:this={timeRef} id="time">0:00</time>
 			<div>
 				{#if mode === "edit" && trimDuration > 0}
-					<time id="trim-duration">{formatTime(trimDuration)}</time>
+					<time id="trim-duration">{format_time(trimDuration)}</time>
 				{/if}
 				<time bind:this={durationRef} id="duration">0:00</time>
 			</div>
 		</div>
 
-		{#if waveform}
-			<WaveformControls
-				{container}
-				{waveform}
-				{playing}
-				{audio_duration}
-				{i18n}
-				{interactive}
-				{handle_trim_audio}
-				bind:mode
-				bind:trimDuration
-				bind:show_volume_slider
-				showRedo={interactive}
-				{handle_reset_value}
-				{waveform_options}
-				{trim_region_settings}
-				{editable}
-			/>
-		{/if}
+		<WaveformControls
+			{container}
+			{waveform}
+			{playing}
+			{audio_duration}
+			{i18n}
+			{interactive}
+			{handle_trim_audio}
+			bind:mode
+			bind:trimDuration
+			bind:show_volume_slider
+			show_redo={interactive}
+			{handle_reset_value}
+			{waveform_options}
+			{trim_region_settings}
+			{editable}
+		/>
 	</div>
 {/if}
 
@@ -244,5 +311,9 @@
 	.standard-player {
 		width: 100%;
 		padding: var(--size-2);
+	}
+
+	.hidden {
+		display: none;
 	}
 </style>

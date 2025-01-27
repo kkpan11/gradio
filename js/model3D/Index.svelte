@@ -5,7 +5,7 @@
 </script>
 
 <script lang="ts">
-	import { normalise_file, type FileData } from "@gradio/client";
+	import type { FileData } from "@gradio/client";
 	import Model3D from "./shared/Model3D.svelte";
 	import Model3DUpload from "./shared/Model3DUpload.svelte";
 	import { BlockLabel, Block, Empty, UploadText } from "@gradio/atoms";
@@ -20,7 +20,7 @@
 	export let visible = true;
 	export let value: null | FileData = null;
 	export let root: string;
-	export let proxy_url: null | string;
+	export let display_mode: "solid" | "point_cloud" | "wireframe" = "solid";
 	export let clear_color: [number, number, number, number];
 	export let loading_status: LoadingStatus;
 	export let label: string;
@@ -31,6 +31,10 @@
 	export let gradio: Gradio;
 	export let height: number | undefined = undefined;
 	export let zoom_speed = 1;
+	export let input_ready: boolean;
+	let uploading = false;
+	$: input_ready = !uploading;
+	export let has_change_history = false;
 
 	// alpha, beta, radius
 	export let camera_position: [number | null, number | null, number | null] = [
@@ -40,10 +44,8 @@
 	];
 	export let interactive: boolean;
 
-	let _value: null | FileData;
-	$: _value = normalise_file(value, root, proxy_url);
-
 	let dragging = false;
+	const is_browser = typeof window !== "undefined";
 </script>
 
 {#if !interactive}
@@ -63,17 +65,20 @@
 			autoscroll={gradio.autoscroll}
 			i18n={gradio.i18n}
 			{...loading_status}
+			on:clear_status={() => gradio.dispatch("clear_status", loading_status)}
 		/>
 
-		{#if value}
+		{#if value && is_browser}
 			<Model3D
-				value={_value}
+				{value}
 				i18n={gradio.i18n}
+				{display_mode}
 				{clear_color}
 				{label}
 				{show_label}
 				{camera_position}
 				{zoom_speed}
+				{has_change_history}
 			/>
 		{:else}
 			<!-- Not ideal but some bugs to work out before we can 
@@ -101,19 +106,25 @@
 			autoscroll={gradio.autoscroll}
 			i18n={gradio.i18n}
 			{...loading_status}
+			on:clear_status={() => gradio.dispatch("clear_status", loading_status)}
 		/>
 
 		<Model3DUpload
 			{label}
 			{show_label}
 			{root}
+			{display_mode}
 			{clear_color}
-			value={_value}
+			{value}
 			{camera_position}
 			{zoom_speed}
+			bind:uploading
 			on:change={({ detail }) => (value = detail)}
 			on:drag={({ detail }) => (dragging = detail)}
-			on:change={({ detail }) => gradio.dispatch("change", detail)}
+			on:change={({ detail }) => {
+				gradio.dispatch("change", detail);
+				has_change_history = true;
+			}}
 			on:clear={() => {
 				value = null;
 				gradio.dispatch("clear");
@@ -122,7 +133,15 @@
 				value = detail;
 				gradio.dispatch("upload");
 			}}
+			on:error={({ detail }) => {
+				loading_status = loading_status || {};
+				loading_status.status = "error";
+				gradio.dispatch("error", detail);
+			}}
 			i18n={gradio.i18n}
+			max_file_size={gradio.max_file_size}
+			upload={(...args) => gradio.client.upload(...args)}
+			stream_handler={(...args) => gradio.client.stream(...args)}
 		>
 			<UploadText i18n={gradio.i18n} type="file" />
 		</Model3DUpload>

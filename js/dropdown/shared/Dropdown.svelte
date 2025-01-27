@@ -3,21 +3,24 @@
 	import { createEventDispatcher, afterUpdate } from "svelte";
 	import { BlockTitle } from "@gradio/atoms";
 	import { DropdownArrow } from "@gradio/icons";
-	import type { SelectData } from "@gradio/utils";
+	import type { SelectData, KeyUpData } from "@gradio/utils";
 	import { handle_filter, handle_change, handle_shared_keys } from "./utils";
+
+	type Item = string | number;
 
 	export let label: string;
 	export let info: string | undefined = undefined;
-	export let value: string | number | (string | number)[] | undefined = [];
-	let old_value: string | number | (string | number)[] | undefined = [];
+	export let value: Item | Item[] | undefined = undefined;
+	let old_value: typeof value = undefined;
 	export let value_is_output = false;
-	export let choices: [string, string | number][];
-	let old_choices: [string, string | number][];
+	export let choices: [string, Item][];
+	let old_choices: typeof choices;
 	export let disabled = false;
 	export let show_label: boolean;
 	export let container = true;
 	export let allow_custom_value = false;
 	export let filterable = true;
+	export let root: string;
 
 	let filter_input: HTMLElement;
 
@@ -41,6 +44,7 @@
 		select: SelectData;
 		blur: undefined;
 		focus: undefined;
+		key_up: KeyUpData;
 	}>();
 
 	// Setting the initial value of the dropdown
@@ -54,12 +58,7 @@
 			[input_text, old_value] = choices[selected_index];
 			old_input_text = input_text;
 		}
-	} else if (choices.length > 0) {
-		old_selected_index = 0;
-		selected_index = 0;
-		[input_text, value] = choices[selected_index];
-		old_value = value;
-		old_input_text = input_text;
+		set_input_text();
 	}
 
 	$: {
@@ -78,23 +77,40 @@
 		}
 	}
 
-	$: {
-		if (value != old_value) {
-			set_input_text();
-			handle_change(dispatch, value, value_is_output);
-			old_value = value;
-		}
+	$: if (JSON.stringify(old_value) !== JSON.stringify(value)) {
+		set_input_text();
+		handle_change(dispatch, value, value_is_output);
+		old_value = value;
 	}
 
-	$: {
+	function set_choice_names_values(): void {
 		choices_names = choices.map((c) => c[0]);
 		choices_values = choices.map((c) => c[1]);
 	}
 
+	$: choices, set_choice_names_values();
+
+	const is_browser = typeof window !== "undefined";
+
 	$: {
-		if (choices !== old_choices || input_text !== old_input_text) {
-			filtered_indices = handle_filter(choices, input_text);
+		if (choices !== old_choices) {
+			if (!allow_custom_value) {
+				set_input_text();
+			}
 			old_choices = choices;
+			filtered_indices = handle_filter(choices, input_text);
+			if (!allow_custom_value && filtered_indices.length > 0) {
+				active_index = filtered_indices[0];
+			}
+			if (is_browser && filter_input === document.activeElement) {
+				show_options = true;
+			}
+		}
+	}
+
+	$: {
+		if (input_text !== old_input_text) {
+			filtered_indices = handle_filter(choices, input_text);
 			old_input_text = input_text;
 			if (!allow_custom_value && filtered_indices.length > 0) {
 				active_index = filtered_indices[0];
@@ -103,7 +119,8 @@
 	}
 
 	function set_input_text(): void {
-		if (value === undefined) {
+		set_choice_names_values();
+		if (value === undefined || (Array.isArray(value) && value.length === 0)) {
 			input_text = "";
 			selected_index = null;
 		} else if (choices_values.includes(value as string)) {
@@ -182,7 +199,7 @@
 </script>
 
 <div class:container>
-	<BlockTitle {show_label} {info}>{label}</BlockTitle>
+	<BlockTitle {root} {show_label} {info}>{label}</BlockTitle>
 
 	<div class="wrap">
 		<div class="wrap-inner" class:show_options>
@@ -200,6 +217,11 @@
 					bind:value={input_text}
 					bind:this={filter_input}
 					on:keydown={handle_key_down}
+					on:keyup={(e) =>
+						dispatch("key_up", {
+							key: e.key,
+							input_value: input_text
+						})}
 					on:blur={handle_blur}
 					on:focus={handle_focus}
 					readonly={!filterable}
@@ -225,9 +247,13 @@
 
 <style>
 	.icon-wrap {
+		position: absolute;
+		top: 50%;
+		transform: translateY(-50%);
+		right: var(--size-5);
 		color: var(--body-text-color);
-		margin-right: var(--size-2);
 		width: var(--size-5);
+		pointer-events: none;
 	}
 	.container {
 		height: 100%;
@@ -246,6 +272,7 @@
 	.wrap:focus-within {
 		box-shadow: var(--input-shadow-focus);
 		border-color: var(--input-border-color-focus);
+		background: var(--input-background-fill-focus);
 	}
 
 	.wrap-inner {

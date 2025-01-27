@@ -35,6 +35,7 @@
 		type="radio"
 		name="radio-{++id}"
 		value={internal_value}
+		aria-checked={is_selected}
 		bind:group={selected}
 	/>
 	<span class="ml-2">{display_value}</span>
@@ -49,7 +50,7 @@
 		box-shadow: var(--checkbox-label-shadow);
 		border: var(--checkbox-label-border-width) solid
 			var(--checkbox-label-border-color);
-		border-radius: var(--button-small-radius);
+		border-radius: var(--checkbox-border-radius);
 		background: var(--checkbox-label-background-fill);
 		padding: var(--checkbox-label-padding);
 		color: var(--checkbox-label-text-color);
@@ -68,6 +69,7 @@
 	label.selected {
 		background: var(--checkbox-label-background-fill-selected);
 		color: var(--checkbox-label-text-color-selected);
+		border-color: var(--checkbox-label-border-color-selected);
 	}
 
 	label > * + * {
@@ -89,6 +91,16 @@
 		border-color: var(--checkbox-border-color-selected);
 		background-image: var(--radio-circle);
 		background-color: var(--checkbox-background-color-selected);
+	}
+
+	input:checked::after {
+		content: "";
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		transform: translate(-50%, -50%);
+		border-radius: 50%;
+		background-color: white;
 	}
 
 	input:hover {

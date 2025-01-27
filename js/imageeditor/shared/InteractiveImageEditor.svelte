@@ -13,30 +13,26 @@
 </script>
 
 <script lang="ts">
+	import { createEventDispatcher } from "svelte";
 	import { type I18nFormatter } from "@gradio/utils";
-	import {
-		prepare_files,
-		upload,
-		normalise_file,
-		type FileData
-	} from "@gradio/client";
-
+	import { prepare_files, type FileData, type Client } from "@gradio/client";
+	import { type CommandNode } from "./utils/commands";
 	import ImageEditor from "./ImageEditor.svelte";
 	import Layers from "./layers/Layers.svelte";
 	import { type Brush as IBrush } from "./tools/Brush.svelte";
 	import { type Eraser } from "./tools/Brush.svelte";
 
-	export let brush: IBrush | null;
-	export let eraser: Eraser | null;
 	import { Tools, Crop, Brush, Sources } from "./tools";
 	import { BlockLabel } from "@gradio/atoms";
 	import { Image as ImageIcon } from "@gradio/icons";
+	import { inject } from "./utils/parse_placeholder";
 
+	export let brush: IBrush | null;
+	export let eraser: Eraser | null;
 	export let sources: ("clipboard" | "webcam" | "upload")[];
 	export let crop_size: [number, number] | `${string}:${string}` | null = null;
 	export let i18n: I18nFormatter;
 	export let root: string;
-	export let proxy_url: string;
 	export let label: string | undefined = undefined;
 	export let show_label: boolean;
 	export let changeable = false;
@@ -46,6 +42,31 @@
 		composite: null
 	};
 	export let transforms: "crop"[] = ["crop"];
+	export let layers: boolean;
+	export let accept_blobs: (a: any) => void;
+	export let status:
+		| "pending"
+		| "complete"
+		| "error"
+		| "generating"
+		| "streaming" = "complete";
+	export let canvas_size: [number, number];
+	export let fixed_canvas = false;
+	export let realtime: boolean;
+	export let upload: Client["upload"];
+	export let stream_handler: Client["stream"];
+	export let dragging: boolean;
+	export let placeholder: string | undefined = undefined;
+	export let dynamic_height: number | undefined = undefined;
+	export let height;
+	export let full_history: CommandNode | null = null;
+
+	const dispatch = createEventDispatcher<{
+		clear?: never;
+		upload?: never;
+		change?: never;
+		receive_null?: never;
+	}>();
 
 	let editor: ImageEditor;
 
@@ -57,14 +78,21 @@
 		return !!o;
 	}
 
+	$: if (bg) dispatch("upload");
+
 	export async function get_data(): Promise<ImageBlobs> {
-		const blobs = await editor.get_blobs();
+		let blobs;
+		try {
+			blobs = await editor.get_blobs();
+		} catch (e) {
+			return { background: null, layers: [], composite: null };
+		}
 
 		const bg = blobs.background
 			? upload(
 					await prepare_files([new File([blobs.background], "background.png")]),
 					root
-			  )
+				)
 			: Promise.resolve(null);
 
 		const layers = blobs.layers
@@ -77,7 +105,7 @@
 			? upload(
 					await prepare_files([new File([blobs.composite], "composite.png")]),
 					root
-			  )
+				)
 			: Promise.resolve(null);
 
 		const [background, composite_, ...layers_] = await Promise.all([
@@ -99,20 +127,99 @@
 		if (!editor) return;
 		if (value == null) {
 			editor.handle_remove();
+			dispatch("receive_null");
 		}
 	}
 
 	$: handle_value(value);
-
 	$: crop_constraint = crop_size;
 	let bg = false;
 	let history = false;
+
+	export let image_id: null | string = null;
 
 	$: editor &&
 		editor.set_tool &&
 		(sources && sources.length
 			? editor.set_tool("bg")
 			: editor.set_tool("draw"));
+
+	type BinaryImages = [string, string, File, number | null][];
+
+	function nextframe(): Promise<void> {
+		return new Promise((resolve) => setTimeout(() => resolve(), 30));
+	}
+
+	let uploading = false;
+	let pending = false;
+	async function handle_change(e: CustomEvent<Blob | any>): Promise<void> {
+		if (!realtime) return;
+		if (uploading) {
+			pending = true;
+			return;
+		}
+
+		uploading = true;
+
+		await nextframe();
+		const blobs = await editor.get_blobs();
+
+		const images: BinaryImages = [];
+
+		let id = Math.random().toString(36).substring(2);
+
+		if (blobs.background)
+			images.push([
+				id,
+				"background",
+				new File([blobs.background], "background.png"),
+				null
+			]);
+		if (blobs.composite)
+			images.push([
+				id,
+				"composite",
+				new File([blobs.composite], "composite.png"),
+				null
+			]);
+		blobs.layers.forEach((layer, i) => {
+			if (layer)
+				images.push([
+					id as string,
+					`layer`,
+					new File([layer], `layer_${i}.png`),
+					i
+				]);
+		});
+
+		await Promise.all(
+			images.map(async ([image_id, type, data, index]) => {
+				return accept_blobs({
+					binary: true,
+					data: { file: data, id: image_id, type, index }
+				});
+			})
+		);
+		image_id = id;
+		dispatch("change");
+
+		await nextframe();
+		uploading = false;
+		if (pending) {
+			pending = false;
+			uploading = false;
+			handle_change(e);
+		}
+	}
+
+	let active_mode: "webcam" | "color" | null = null;
+	let editor_height = height - 100;
+
+	let _dynamic_height: number;
+
+	$: dynamic_height = _dynamic_height;
+
+	$: [heading, paragraph] = placeholder ? inject(placeholder) : [false, false];
 </script>
 
 <BlockLabel
@@ -121,28 +228,40 @@
 	label={label || i18n("image.image")}
 />
 <ImageEditor
+	on:history
+	{canvas_size}
+	crop_size={Array.isArray(crop_size) ? crop_size : undefined}
 	bind:this={editor}
+	bind:height={editor_height}
+	bind:canvas_height={_dynamic_height}
+	parent_height={height}
 	{changeable}
 	on:save
+	on:change={handle_change}
+	on:clear={() => dispatch("clear")}
 	bind:history
 	bind:bg
 	{sources}
 	crop_constraint={!!crop_constraint}
+	{full_history}
 >
 	<Tools {i18n}>
-		{#if sources && sources.length}
-			<Sources
-				{i18n}
-				{root}
-				{sources}
-				bind:bg
-				background_file={normalise_file(
-					value?.background || null,
-					root,
-					proxy_url
-				)}
-			></Sources>
-		{/if}
+		<Layers layer_files={value?.layers || null} enable_layers={layers} />
+
+		<Sources
+			bind:dragging
+			{i18n}
+			{root}
+			{sources}
+			{upload}
+			{stream_handler}
+			{canvas_size}
+			bind:bg
+			bind:active_mode
+			background_file={value?.background || value?.composite || null}
+			{fixed_canvas}
+		></Sources>
+
 		{#if transforms.includes("crop")}
 			<Crop {crop_constraint} />
 		{/if}
@@ -161,20 +280,25 @@
 		{/if}
 	</Tools>
 
-	<Layers
-		layer_files={normalise_file(value?.layers || null, root, proxy_url)}
-	/>
-
-	{#if !bg && !history}
-		<div class="empty wrap">
+	{#if !bg && !history && active_mode !== "webcam" && status !== "error"}
+		<div class="empty wrap" style:height={`${editor_height}px`}>
 			{#if sources && sources.length}
-				<div>Upload an image</div>
+				{#if heading || paragraph}
+					{#if heading}
+						<h2>{heading}</h2>
+					{/if}
+					{#if paragraph}
+						<p>{paragraph}</p>
+					{/if}
+				{:else}
+					<div>Upload an image</div>
+				{/if}
 			{/if}
 
-			{#if sources && sources.length && brush}
+			{#if sources && sources.length && brush && !placeholder}
 				<div class="or">or</div>
 			{/if}
-			{#if brush}
+			{#if brush && !placeholder}
 				<div>select the draw tool to start</div>
 			{/if}
 		</div>
@@ -182,12 +306,20 @@
 </ImageEditor>
 
 <style>
+	h2 {
+		font-size: var(--text-xl);
+	}
+
+	p,
+	h2 {
+		white-space: pre-line;
+	}
+
 	.empty {
 		display: flex;
 		flex-direction: column;
 		justify-content: center;
 		align-items: center;
-
 		position: absolute;
 		height: 100%;
 		width: 100%;
@@ -197,6 +329,7 @@
 		z-index: var(--layer-top);
 		text-align: center;
 		color: var(--body-text-color);
+		top: var(--size-8);
 	}
 
 	.wrap {
@@ -204,14 +337,10 @@
 		flex-direction: column;
 		justify-content: center;
 		align-items: center;
-		min-height: var(--size-60);
 		color: var(--block-label-text-color);
 		line-height: var(--line-md);
-		height: 100%;
-		padding-top: var(--size-3);
-		font-size: var(--text-lg);
+		font-size: var(--text-md);
 		pointer-events: none;
-		transform: translateY(-30px);
 	}
 
 	.or {

@@ -29,7 +29,8 @@
 			["swim", "swim"],
 			["jump", "jump"]
 		],
-		label: "Single-select Dropdown"
+		label: "Single-select Dropdown",
+		info: "This is a single-select dropdown"
 	}}
 />
 <Story
@@ -43,5 +44,18 @@
 		],
 		disabled: true,
 		label: "Single-select Dropdown"
+	}}
+/>
+
+<Story
+	name="Empty initial value"
+	args={{
+		interactive: true,
+		choices: [
+			["run", "run"],
+			["swim", "swim"],
+			["jump", "jump"]
+		],
+		label: "Empty Dropdown"
 	}}
 />

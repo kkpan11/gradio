@@ -1,6 +1,6 @@
 import inspect
 import time
-from typing import Iterable
+from collections.abc import Iterable
 
 from gradio_client.documentation import document_fn
 
@@ -12,6 +12,9 @@ themes = [
     gr.themes.Soft,
     gr.themes.Monochrome,
     gr.themes.Glass,
+    gr.themes.Origin,
+    gr.themes.Citrus,
+    gr.themes.Ocean,
 ]
 colors = gr.themes.Color.all
 sizes = gr.themes.Size.all
@@ -80,6 +83,7 @@ with gr.Blocks(  # noqa: SIM117
     theme=gr.themes.Base(),
     css=css,
     title="Gradio Theme Builder",
+    head="<style id='theme_css'></style>",
 ) as demo:
     with gr.Row():
         with gr.Column(scale=1, elem_id="controls", min_width=400):
@@ -97,6 +101,7 @@ with gr.Blocks(  # noqa: SIM117
                         [theme.__name__ for theme in themes],
                         value="Base",
                         show_label=False,
+                        label="Theme",
                     )
                     load_theme_btn = gr.Button("Load Theme", elem_id="load_theme")
                 with gr.TabItem("Core Colors"):
@@ -325,6 +330,8 @@ with gr.Blocks(  # noqa: SIM117
                 interactive=True,
             )
 
+            gr.Interface(lambda x: x, "number", "textbox")
+
             with gr.Row():
                 slider1 = gr.Slider(label="Slider 1")
                 slider2 = gr.Slider(label="Slider 2")
@@ -359,7 +366,7 @@ with gr.Blocks(  # noqa: SIM117
                         go_btn = gr.Button("Go", variant="primary")
                         clear_btn = gr.Button("Clear", variant="secondary")
 
-                        def go(*args):
+                        def go(*_args):
                             time.sleep(3)
                             return "https://gradio-static-files.s3.us-west-2.amazonaws.com/header-image.jpg"
 
@@ -372,7 +379,6 @@ with gr.Blocks(  # noqa: SIM117
 
                         def clear():
                             time.sleep(0.2)
-                            return None
 
                         clear_btn.click(clear, None, img)
 
@@ -435,11 +441,10 @@ with gr.Blocks(  # noqa: SIM117
             with gr.Row():
                 with gr.Column(scale=2):
                     chatbot = gr.Chatbot([("Hello", "Hi")], label="Chatbot")
+                    multimodal = gr.MultimodalTextbox(
+                        interactive=True, show_label=False
+                    )
                     chat_btn = gr.Button("Add messages")
-
-                    def chat(history):
-                        time.sleep(2)
-                        yield [["How are you?", "I am good."]]
 
                     chat_btn.click(
                         lambda history: history
@@ -466,7 +471,6 @@ with gr.Blocks(  # noqa: SIM117
             None,
             None,
             js="""() => {
-                document.head.innerHTML += "<style id='theme_css'></style>";
                 let evt_listener = window.setTimeout(
                     () => {
                         load_theme_btn = document.querySelector('#load_theme');
@@ -602,6 +606,7 @@ with gr.Blocks(  # noqa: SIM117
                     gr.themes.Size,
                 ],
                 core_variables,
+                strict=False,
             ):
                 if base_value.name != final_value:
                     core_diffs[value_name] = final_value
@@ -624,7 +629,21 @@ with gr.Blocks(  # noqa: SIM117
                     if getattr(source_obj, attr) != final_attr_values[final_theme_attr]:
                         diff = True
                 if diff:
-                    specific_core_diffs[value_name] = (source_class, final_attr_values)
+                    new_final_attr_values = {}
+                    # We need to update the theme keys to match the color and size attribute names
+                    for key, val in final_attr_values.items():
+                        if key.startswith(("primary_", "secondary_", "neutral_")):
+                            color_key = "c" + key.split("_")[-1]
+                            new_final_attr_values[color_key] = val
+                        elif key.startswith(("text_", "spacing_", "radius_")):
+                            size_key = key.split("_")[-1]
+                            new_final_attr_values[size_key] = val
+                        else:
+                            new_final_attr_values[key] = val
+                    specific_core_diffs[value_name] = (
+                        source_class,
+                        new_final_attr_values,
+                    )
 
             font_diffs = {}
 
@@ -639,7 +658,9 @@ with gr.Blocks(  # noqa: SIM117
                 if len(base_font_set) != len(theme_font_set) or any(
                     base_font.name != theme_font[0]
                     or isinstance(base_font, gr.themes.GoogleFont) != theme_font[1]
-                    for base_font, theme_font in zip(base_font_set, theme_font_set)
+                    for base_font, theme_font in zip(
+                        base_font_set, theme_font_set, strict=False
+                    )
                 ):
                     font_diffs[font_set_name] = [
                         f"gr.themes.GoogleFont('{font_name}')"
@@ -657,9 +678,10 @@ with gr.Blocks(  # noqa: SIM117
                         cls, vals = specific_core_diffs[var_name]
                         core_diffs_code += f"""    {var_name}=gr.themes.{cls.__name__}({', '.join(f'''{k}="{v}"''' for k, v in vals.items())}),\n"""
                     elif var_name in core_diffs:
-                        core_diffs_code += (
-                            f"""    {var_name}="{core_diffs[var_name]}",\n"""
-                        )
+                        var_val = core_diffs[var_name]
+                        if var_name.endswith("_size"):
+                            var_val = var_val.split("_")[-1]
+                        core_diffs_code += f"""    {var_name}="{var_val}",\n"""
 
             font_diffs_code = ""
 
@@ -759,19 +781,19 @@ with gr.Blocks(theme=theme) as demo:
 
             final_main_fonts = []
             font_weights = set()
-            for attr, val in zip(flat_variables, remaining_args):
+            for attr, val in zip(flat_variables, remaining_args, strict=False):
                 if "weight" in attr:
                     font_weights.add(val)
             font_weights = sorted(font_weights)
 
-            for main_font, is_google in zip(main_fonts, main_is_google):
+            for main_font, is_google in zip(main_fonts, main_is_google, strict=False):
                 if not main_font:
                     continue
                 if is_google:
                     main_font = gr.themes.GoogleFont(main_font, weights=font_weights)
                 final_main_fonts.append(main_font)
             final_mono_fonts = []
-            for mono_font, is_google in zip(mono_fonts, mono_is_google):
+            for mono_font, is_google in zip(mono_fonts, mono_is_google, strict=False):
                 if not mono_font:
                     continue
                 if is_google:
@@ -789,7 +811,7 @@ with gr.Blocks(theme=theme) as demo:
                 font_mono=final_mono_fonts,
             )
 
-            theme.set(**dict(zip(flat_variables, remaining_args)))
+            theme.set(**dict(zip(flat_variables, remaining_args, strict=False)))
             new_step = (base_theme, args)
             if len(history) == 0 or str(history[-1]) != str(new_step):
                 history.append(new_step)
@@ -809,8 +831,8 @@ with gr.Blocks(theme=theme) as demo:
                         spacing_size,
                         radius_size,
                     ),
-                    list(zip(main_fonts, main_is_google)),
-                    list(zip(mono_fonts, mono_is_google)),
+                    list(zip(main_fonts, main_is_google, strict=False)),
+                    list(zip(mono_fonts, mono_is_google, strict=False)),
                 ),
                 theme,
             )

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import MarkdownCode from "./shared/MarkdownCode.svelte";
+	import { MarkdownCode } from "@gradio/markdown-code";
 
 	export let value: string | null;
 	export let type: "gallery" | "table";
@@ -11,6 +11,7 @@
 		right: string;
 		display: boolean;
 	}[];
+	export let root: string;
 </script>
 
 <div
@@ -25,6 +26,7 @@
 		{sanitize_html}
 		{line_breaks}
 		chatbot={false}
+		{root}
 	/>
 </div>
 

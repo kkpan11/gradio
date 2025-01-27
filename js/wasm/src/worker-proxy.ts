@@ -26,10 +26,9 @@ export interface WorkerProxyOptions {
 }
 
 export class WorkerProxy extends EventTarget {
-	private worker: globalThis.Worker | globalThis.SharedWorker;
-	private postMessageTarget: globalThis.Worker | MessagePort;
-
-	private firstRunPromiseDelegate = new PromiseDelegate<void>();
+	worker: globalThis.Worker | globalThis.SharedWorker;
+	postMessageTarget: globalThis.Worker | MessagePort;
+	firstRunPromiseDelegate = new PromiseDelegate<void>();
 
 	constructor(options: WorkerProxyOptions) {
 		super();
@@ -38,27 +37,26 @@ export class WorkerProxy extends EventTarget {
 
 		console.debug("WorkerProxy.constructor(): Create a new worker.");
 		// Loading a worker here relies on Vite's support for WebWorkers (https://vitejs.dev/guide/features.html#web-workers),
-		// assuming that this module is imported from the Gradio frontend (`@gradio/app`), which is bundled with Vite.
+		// assuming that this module is imported from the Gradio frontend (`@gradio/lite`), which is bundled with Vite.
 		// HACK: Use `CrossOriginWorkerMaker` imported as `Worker` here.
 		// Read the comment in `cross-origin-worker.ts` for the detail.
-		const workerMaker = new Worker(new URL("./webworker.js", import.meta.url), {
-			/* @vite-ignore */ shared: sharedWorkerMode // `@vite-ignore` is needed to avoid an error `Vite is unable to parse the worker options as the value is not static.`
-		});
+		const workerMaker = new Worker(
+			new URL("../dist/webworker/webworker.js", import.meta.url),
+			{
+				/* @vite-ignore */ shared: sharedWorkerMode // `@vite-ignore` is needed to avoid an error `Vite is unable to parse the worker options as the value is not static.`
+			}
+		);
 
 		this.worker = workerMaker.worker;
 		if (sharedWorkerMode) {
 			this.postMessageTarget = (this.worker as SharedWorker).port;
 			this.postMessageTarget.start();
-			this.postMessageTarget.onmessage = (e) => {
-				this._processWorkerMessage(e.data);
-			};
 		} else {
 			this.postMessageTarget = this.worker as globalThis.Worker;
-
-			(this.worker as globalThis.Worker).onmessage = (e) => {
-				this._processWorkerMessage(e.data);
-			};
 		}
+		this.postMessageTarget.onmessage = (e) => {
+			this._processWorkerMessage(e.data);
+		};
 
 		this.postMessageAsync({
 			type: "init-env",
@@ -92,7 +90,11 @@ export class WorkerProxy extends EventTarget {
 			}
 		})
 			.then(() => {
-				console.debug("WorkerProxy.constructor(): App initialization is done.");
+				this.dispatchEvent(
+					new CustomEvent("initialization-completed", {
+						detail: null
+					})
+				);
 			})
 			.catch((error) => {
 				console.error(
@@ -131,7 +133,7 @@ export class WorkerProxy extends EventTarget {
 	// returns void immediately, this function returns a promise, which resolves
 	// when a ReplyMessage is received from the worker.
 	// The original implementation is in https://github.com/rstudio/shinylive/blob/v0.1.2/src/pyodide-proxy.ts#L404-L418
-	private postMessageAsync(msg: InMessage): Promise<unknown> {
+	postMessageAsync(msg: InMessage): Promise<unknown> {
 		return new Promise((resolve, reject) => {
 			const channel = new MessageChannel();
 
@@ -150,12 +152,44 @@ export class WorkerProxy extends EventTarget {
 		});
 	}
 
-	private _processWorkerMessage(msg: OutMessage): void {
+	_processWorkerMessage(msg: OutMessage): void {
 		switch (msg.type) {
 			case "progress-update": {
 				this.dispatchEvent(
 					new CustomEvent("progress-update", {
 						detail: msg.data.log
+					})
+				);
+				break;
+			}
+			case "modules-auto-loaded": {
+				this.dispatchEvent(
+					new CustomEvent("modules-auto-loaded", {
+						detail: msg.data.packages
+					})
+				);
+				break;
+			}
+			case "stdout": {
+				this.dispatchEvent(
+					new CustomEvent("stdout", {
+						detail: msg.data.output
+					})
+				);
+				break;
+			}
+			case "stderr": {
+				this.dispatchEvent(
+					new CustomEvent("stderr", {
+						detail: msg.data.output
+					})
+				);
+				break;
+			}
+			case "python-error": {
+				this.dispatchEvent(
+					new CustomEvent("python-error", {
+						detail: new Error(msg.data.traceback)
 					})
 				);
 				break;

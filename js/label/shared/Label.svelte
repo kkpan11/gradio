@@ -11,17 +11,27 @@
 
 	export let color: string | undefined = undefined;
 	export let selectable = false;
+	export let show_heading = true;
+
+	function get_aria_referenceable_id(elem_id: string): string {
+		// `aria-labelledby` interprets the value as a space-separated id reference list,
+		// so each single id should not contain any spaces.
+		// Ref: https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Attributes/aria-labelledby#benefits_and_drawbacks
+		return elem_id.replace(/\s/g, "-");
+	}
 </script>
 
 <div class="container">
-	<h2
-		class="output-class"
-		data-testid="label-output-value"
-		class:no-confidence={!("confidences" in value)}
-		style:background-color={color || "transparent"}
-	>
-		{value.label}
-	</h2>
+	{#if show_heading || !value.confidences}
+		<h2
+			class="output-class"
+			data-testid="label-output-value"
+			class:no-confidence={!("confidences" in value)}
+			style:background-color={color || "transparent"}
+		>
+			{value.label}
+		</h2>
+	{/if}
 
 	{#if typeof value === "object" && value.confidences}
 		{#each value.confidences as confidence_set, i}
@@ -35,27 +45,35 @@
 			>
 				<div class="inner-wrap">
 					<meter
-						aria-labelledby="meter-text"
+						aria-labelledby={get_aria_referenceable_id(
+							`meter-text-${confidence_set.label}`
+						)}
+						aria-label={confidence_set.label}
+						aria-valuenow={Math.round(confidence_set.confidence * 100)}
+						aria-valuemin="0"
+						aria-valuemax="100"
 						class="bar"
 						min="0"
-						max="100"
+						max="1"
+						value={confidence_set.confidence}
 						style="width: {confidence_set.confidence *
 							100}%; background: var(--stat-background-fill);
 						"
-						value={confidence_set.confidence * 100}
-						aria-label={Math.round(confidence_set.confidence * 100) + "%"}
 					/>
 
 					<dl class="label">
-						<dt id={`meter-text-${confidence_set.label}`} class="text">
+						<dt
+							id={get_aria_referenceable_id(
+								`meter-text-${confidence_set.label}`
+							)}
+							class="text"
+						>
 							{confidence_set.label}
 						</dt>
-						{#if value.confidences}
-							<div class="line" />
-							<dd class="confidence">
-								{Math.round(confidence_set.confidence * 100)}%
-							</dd>
-						{/if}
+						<div class="line" />
+						<dd class="confidence">
+							{Math.round(confidence_set.confidence * 100)}%
+						</dd>
 					</dl>
 				</div>
 			</button>
@@ -100,11 +118,38 @@
 
 	.bar {
 		appearance: none;
+		-webkit-appearance: none;
+		-moz-appearance: none;
 		align-self: flex-start;
 		margin-bottom: var(--size-1);
 		border-radius: var(--radius-md);
 		background: var(--stat-background-fill);
 		height: var(--size-1);
+		border: none;
+	}
+
+	.bar::-moz-meter-bar {
+		border-radius: var(--radius-md);
+		background: var(--stat-background-fill);
+	}
+
+	.bar::-webkit-meter-bar {
+		border-radius: var(--radius-md);
+		background: var(--stat-background-fill);
+		border: none;
+	}
+
+	.bar::-webkit-meter-optimum-value,
+	.bar::-webkit-meter-suboptimum-value,
+	.bar::-webkit-meter-even-less-good-value {
+		border-radius: var(--radius-md);
+		background: var(--stat-background-fill);
+	}
+
+	.bar::-ms-fill {
+		border-radius: var(--radius-md);
+		background: var(--stat-background-fill);
+		border: none;
 	}
 
 	.label {
@@ -126,6 +171,7 @@
 
 	.text {
 		line-height: var(--line-md);
+		text-align: left;
 	}
 
 	.line {

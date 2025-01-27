@@ -11,6 +11,7 @@
 		submit: never;
 		blur: never;
 		focus: never;
+		clear_status: LoadingStatus;
 	}>;
 	export let label = gradio.i18n("number.number");
 	export let info: string | undefined = undefined;
@@ -28,6 +29,7 @@
 	export let value_is_output = false;
 	export let step: number | null = null;
 	export let interactive: boolean;
+	export let root: string;
 
 	function handle_change(): void {
 		if (!isNaN(value) && value !== null) {
@@ -66,9 +68,10 @@
 		autoscroll={gradio.autoscroll}
 		i18n={gradio.i18n}
 		{...loading_status}
+		on:clear_status={() => gradio.dispatch("clear_status", loading_status)}
 	/>
 	<label class="block" class:container>
-		<BlockTitle {show_label} {info}>{label}</BlockTitle>
+		<BlockTitle {root} {show_label} {info}>{label}</BlockTitle>
 		<input
 			aria-label={label}
 			type="number"
@@ -115,6 +118,7 @@
 	input:focus {
 		box-shadow: var(--input-shadow-focus);
 		border-color: var(--input-border-color-focus);
+		background: var(--input-background-fill-focus);
 	}
 
 	input::placeholder {

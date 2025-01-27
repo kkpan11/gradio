@@ -1,56 +1,81 @@
-""" Handy utility functions. """
+"""Handy utility functions."""
 
 from __future__ import annotations
 
+import ast
 import asyncio
 import copy
-import dataclasses
 import functools
+import hashlib
 import importlib
+import importlib.resources
+import importlib.util
 import inspect
 import json
 import json.decoder
 import os
 import pkgutil
+import posixpath
 import re
+import shutil
+import subprocess
+import sys
+import tempfile
 import threading
 import time
 import traceback
 import typing
 import urllib.parse
+import uuid
 import warnings
 from abc import ABC, abstractmethod
 from collections import OrderedDict
+from collections.abc import (
+    Callable,
+    Hashable,
+    Iterable,
+    Iterator,
+    MutableMapping,
+    Sequence,
+)
 from contextlib import contextmanager
+from functools import wraps
 from io import BytesIO
-from numbers import Number
 from pathlib import Path
-from types import AsyncGeneratorType, GeneratorType
+from types import ModuleType, NoneType
 from typing import (
     TYPE_CHECKING,
     Any,
-    Callable,
     Generic,
-    Iterable,
-    Iterator,
+    Literal,
     Optional,
     TypeVar,
+    get_args,
+    get_origin,
 )
 
 import anyio
+import gradio_client.utils as client_utils
 import httpx
+import orjson
+from gradio_client.documentation import document
 from typing_extensions import ParamSpec
 
 import gradio
-from gradio.context import Context
-from gradio.strings import en
+from gradio.context import get_blocks_context
+from gradio.data_classes import (
+    BlocksConfigDict,
+    DeveloperPath,
+    FileData,
+    UserProvidedPath,
+)
+from gradio.exceptions import Error, InvalidPathError
 
 if TYPE_CHECKING:  # Only import for type checking (is False at runtime).
     from gradio.blocks import BlockContext, Blocks
     from gradio.components import Component
     from gradio.routes import App, Request
-
-JSON_PATH = os.path.join(os.path.dirname(gradio.__file__), "launches.json")
+    from gradio.state_holder import SessionState
 
 P = ParamSpec("P")
 T = TypeVar("T")
@@ -81,27 +106,30 @@ def safe_get_lock() -> asyncio.Lock:
         return None  # type: ignore
 
 
+def safe_get_stop_event() -> asyncio.Event:
+    try:
+        asyncio.get_event_loop()
+        return asyncio.Event()
+    except RuntimeError:
+        return None  # type: ignore
+
+
 class BaseReloader(ABC):
     @property
     @abstractmethod
     def running_app(self) -> App:
         pass
 
-    def queue_changed(self, demo: Blocks):
-        return (
-            hasattr(self.running_app.blocks, "_queue") and not hasattr(demo, "_queue")
-        ) or (
-            not hasattr(self.running_app.blocks, "_queue") and hasattr(demo, "_queue")
-        )
-
     def swap_blocks(self, demo: Blocks):
-        assert self.running_app.blocks
+        assert self.running_app.blocks  # noqa: S101
         # Copy over the blocks to get new components and events but
         # not a new queue
-        self.running_app.blocks._queue.block_fns = demo.fns
         demo._queue = self.running_app.blocks._queue
+        demo.has_launched = True
+        demo.max_file_size = self.running_app.blocks.max_file_size
+        demo.is_running = True
+        self.running_app.state_holder.reset(demo)
         self.running_app.blocks = demo
-        demo._queue.reload()
 
 
 class SourceFileReloader(BaseReloader):
@@ -110,8 +138,9 @@ class SourceFileReloader(BaseReloader):
         app: App,
         watch_dirs: list[str],
         watch_module_name: str,
+        demo_file: str,
+        watch_module: ModuleType,
         stop_event: threading.Event,
-        change_event: threading.Event,
         demo_name: str = "demo",
     ) -> None:
         super().__init__()
@@ -119,8 +148,9 @@ class SourceFileReloader(BaseReloader):
         self.watch_dirs = watch_dirs
         self.watch_module_name = watch_module_name
         self.stop_event = stop_event
-        self.change_event = change_event
         self.demo_name = demo_name
+        self.demo_file = Path(demo_file)
+        self.watch_module = watch_module
 
     @property
     def running_app(self) -> App:
@@ -132,12 +162,76 @@ class SourceFileReloader(BaseReloader):
     def stop(self) -> None:
         self.stop_event.set()
 
-    def alert_change(self):
-        self.change_event.set()
+    def alert_change(self, change_type: Literal["reload", "error"] = "reload"):
+        self.app.change_type = change_type
+        self.app.change_count += 1
 
     def swap_blocks(self, demo: Blocks):
+        old_blocks = self.running_app.blocks
         super().swap_blocks(demo)
-        self.alert_change()
+        if old_blocks:
+            reassign_keys(old_blocks, demo)
+        demo.config = demo.get_config_file()
+        self.alert_change("reload")
+
+
+class DynamicBoolean(int):
+    def __init__(self, value: int):
+        self.value = bool(value)
+
+    def __bool__(self):
+        return self.value
+
+    def set(self, value: int):
+        self.value = bool(value)
+
+
+NO_RELOAD = DynamicBoolean(True)
+
+
+def _remove_if_name_main_codeblock(file_path: str):
+    """Parse the file, remove the gr.no_reload code blocks, and write the file back to disk.
+
+    Parameters:
+        file_path (str): The path to the file to remove the no_reload code blocks from.
+    """
+
+    with open(file_path, encoding="utf-8") as file:
+        code = file.read()
+
+    tree = ast.parse(code)
+
+    def _is_if_name_main(expr: ast.AST) -> bool:
+        """Find the if __name__ == '__main__': block."""
+        return (
+            isinstance(expr, ast.If)
+            and isinstance(expr.test, ast.Compare)
+            and isinstance(expr.test.left, ast.Name)
+            and expr.test.left.id == "__name__"
+            and len(expr.test.ops) == 1
+            and isinstance(expr.test.ops[0], ast.Eq)
+            and isinstance(expr.test.comparators[0], ast.Constant)
+            and expr.test.comparators[0].s == "__main__"
+        )
+
+    # Find the positions of the code blocks to load
+    for node in ast.walk(tree):
+        if _is_if_name_main(node):
+            assert isinstance(node, ast.If)  # noqa: S101
+            node.body = [ast.Pass(lineno=node.lineno, col_offset=node.col_offset)]
+
+    # convert tree to string
+    code_removed = compile(tree, filename=file_path, mode="exec")
+    return code_removed
+
+
+def _find_module(source_file: Path) -> ModuleType | None:
+    for s, v in sys.modules.items():
+        if s not in {"__main__", "__mp_main__"} and getattr(v, "__file__", None) == str(
+            source_file
+        ):
+            return v
+    return None
 
 
 def watchfn(reloader: SourceFileReloader):
@@ -145,6 +239,8 @@ def watchfn(reloader: SourceFileReloader):
 
     get_changes is taken from uvicorn's default file watcher.
     """
+
+    NO_RELOAD.set(False)
 
     # The thread running watchfn will be the thread reloading
     # the app. So we need to modify this thread_data attr here
@@ -175,7 +271,6 @@ def watchfn(reloader: SourceFileReloader):
             for path in list(reload_dir.rglob("*.css")):
                 yield path.resolve()
 
-    module = None
     reload_dirs = [Path(dir_) for dir_ in reloader.watch_dirs]
     import sys
 
@@ -183,47 +278,121 @@ def watchfn(reloader: SourceFileReloader):
         sys.path.insert(0, str(dir_))
 
     mtimes = {}
+    # Need to import the module in this thread so that the
+    # module is available in the namespace of this thread
+    module = reloader.watch_module
+    no_reload_source_code = _remove_if_name_main_codeblock(str(reloader.demo_file))
+    exec(no_reload_source_code, module.__dict__)
+    sys.modules[reloader.watch_module_name] = module
+
     while reloader.should_watch():
         changed = get_changes()
         if changed:
             print(f"Changes detected in: {changed}")
-            # To simulate a fresh reload, delete all module references from sys.modules
-            # for the modules in the package the change came from.
-            dir_ = next(d for d in reload_dirs if is_in_or_equal(changed, d))
-            modules = list(sys.modules)
-            for k in modules:
-                v = sys.modules[k]
-                sourcefile = getattr(v, "__file__", None)
-                # Do not reload `reload.py` to keep thread data
-                if (
-                    sourcefile
-                    and dir_ == Path(inspect.getfile(gradio)).parent
-                    and sourcefile.endswith("reload.py")
-                ):
-                    continue
-                if sourcefile and is_in_or_equal(sourcefile, dir_):
-                    del sys.modules[k]
             try:
-                module = importlib.import_module(reloader.watch_module_name)
-                module = importlib.reload(module)
-            except Exception:
+                # How source file reloading works
+                # 1. Remove the gr.no_reload code blocks from the temp file
+                # 2. Execute the changed source code in the original module's namespac
+                # 3. Delete the package the module is in from sys.modules.
+                # This is so that the updated module is available in the entire package
+                # 4. Do 1-2 for the main demo file even if it did not change.
+                # This is because the main demo file may import the changed file and we need the
+                # changes to be reflected in the main demo file.
+
+                if changed.suffix == ".py":
+                    changed_in_copy = _remove_if_name_main_codeblock(str(changed))
+                    if changed != reloader.demo_file:
+                        changed_module = _find_module(changed)
+                        if changed_module:
+                            exec(changed_in_copy, changed_module.__dict__)
+                            top_level_parent = sys.modules[
+                                changed_module.__name__.split(".")[0]
+                            ]
+                            if top_level_parent != changed_module:
+                                importlib.reload(top_level_parent)
+
+                changed_demo_file = _remove_if_name_main_codeblock(
+                    str(reloader.demo_file)
+                )
+                exec(changed_demo_file, module.__dict__)
+            except Exception as error:
                 print(
                     f"Reloading {reloader.watch_module_name} failed with the following exception: "
                 )
-                traceback.print_exc()
+                if not isinstance(error, Error) or error.print_exception:
+                    traceback.print_exc()
                 mtimes = {}
+                reloader.alert_change("error")
+                reloader.app.reload_error_message = traceback.format_exc()
                 continue
-
             demo = getattr(module, reloader.demo_name)
-            if reloader.queue_changed(demo):
-                print(
-                    "Reloading failed. The new demo has a queue and the old one doesn't (or vice versa). "
-                    "Please launch your demo again"
-                )
-            else:
-                reloader.swap_blocks(demo)
+            reloader.swap_blocks(demo)
             mtimes = {}
         time.sleep(0.05)
+
+
+def deep_equal(a: Any, b: Any) -> bool:
+    """
+    Deep equality check for component values.
+
+    Prefer orjson for performance and compatibility with numpy arrays/dataframes/torch tensors.
+    If objects are not serializable by orjson, fall back to regular equality check.
+    """
+
+    def _serialize(a: Any) -> bytes:
+        return orjson.dumps(
+            a,
+            option=orjson.OPT_SERIALIZE_NUMPY | orjson.OPT_PASSTHROUGH_DATETIME,
+        )
+
+    try:
+        return _serialize(a) == _serialize(b)
+    except TypeError:
+        try:
+            return a == b
+        except Exception:
+            return False
+
+
+def reassign_keys(old_blocks: Blocks, new_blocks: Blocks):
+    from gradio.blocks import BlockContext
+
+    assigned_keys = [
+        block.key for block in new_blocks.children if block.key is not None
+    ]
+
+    def reassign_context_keys(
+        old_context: BlockContext | None, new_context: BlockContext
+    ):
+        for i, new_block in enumerate(new_context.children):
+            if old_context and i < len(old_context.children):
+                old_block = old_context.children[i]
+            else:
+                old_block = None
+            if new_block.key is None:
+                if (
+                    old_block.__class__ == new_block.__class__
+                    and old_block is not None
+                    and old_block.key not in assigned_keys
+                    and deep_equal(
+                        getattr(old_block, "value", None),
+                        getattr(new_block, "value", None),
+                    )
+                ):
+                    new_block.key = old_block.key
+                else:
+                    new_block.key = f"__{new_block._id}__"
+
+            if isinstance(new_block, BlockContext):
+                if (
+                    isinstance(old_block, BlockContext)
+                    and old_block.__class__ == new_block.__class__
+                ):
+                    reassign_context_keys(old_block, new_block)
+                else:
+                    reassign_context_keys(None, new_block)
+
+    reassign_context_keys(old_blocks, new_blocks)
 
 
 def colab_check() -> bool:
@@ -286,32 +455,42 @@ def is_zero_gpu_space() -> bool:
     return os.getenv("SPACES_ZERO_GPU") == "true"
 
 
-def readme_to_html(article: str) -> str:
+def download_if_url(article: str) -> str:
+    try:
+        result = urllib.parse.urlparse(article)
+        is_url = all([result.scheme, result.netloc, result.path])
+        is_url = is_url and result.scheme in ["http", "https"]
+    except ValueError:
+        is_url = False
+
+    if not is_url:
+        return article
+
     try:
         response = httpx.get(article, timeout=3)
         if response.status_code == httpx.codes.OK:  # pylint: disable=no-member
             article = response.text
-    except httpx.RequestError:
+    except (httpx.InvalidURL, httpx.RequestError, httpx.TimeoutException):
         pass
+
     return article
 
 
-def launch_counter() -> None:
+HASH_SEED_PATH = os.path.join(os.path.dirname(gradio.__file__), "hash_seed.txt")
+
+
+def get_hash_seed() -> str:
     try:
-        if not os.path.exists(JSON_PATH):
-            launches = {"launches": 1}
-            with open(JSON_PATH, "w+") as j:
-                json.dump(launches, j)
+        if os.path.exists(HASH_SEED_PATH):
+            with open(HASH_SEED_PATH) as j:
+                return j.read().strip()
         else:
-            with open(JSON_PATH) as j:
-                launches = json.load(j)
-            launches["launches"] += 1
-            if launches["launches"] in [25, 50, 150, 500, 1000]:
-                print(en["BETA_INVITE"])
-            with open(JSON_PATH, "w") as j:
-                j.write(json.dumps(launches))
+            with open(HASH_SEED_PATH, "w") as j:
+                seed = uuid.uuid4().hex
+                j.write(seed)
+                return seed
     except Exception:
-        pass
+        return uuid.uuid4().hex
 
 
 def get_default_args(func: Callable) -> list[Any]:
@@ -322,8 +501,26 @@ def get_default_args(func: Callable) -> list[Any]:
     ]
 
 
+def safe_deepcopy(obj: Any) -> Any:
+    try:
+        return copy.deepcopy(obj)
+    except Exception:
+        if isinstance(obj, dict):
+            return {
+                safe_deepcopy(key): safe_deepcopy(value) for key, value in obj.items()
+            }
+        elif isinstance(obj, list):
+            return [safe_deepcopy(item) for item in obj]
+        elif isinstance(obj, tuple):
+            return tuple(safe_deepcopy(item) for item in obj)
+        elif isinstance(obj, set):
+            return {safe_deepcopy(item) for item in obj}
+        else:
+            return copy.copy(obj)
+
+
 def assert_configs_are_equivalent_besides_ids(
-    config1: dict, config2: dict, root_keys: tuple = ("mode",)
+    config1: BlocksConfigDict, config2: BlocksConfigDict, root_keys: tuple = ("mode",)
 ):
     """Allows you to test if two different Blocks configs produce the same demo.
 
@@ -363,45 +560,38 @@ def assert_configs_are_equivalent_besides_ids(
             raise ValueError(f"{c1} does not match {c2}")
 
     def same_children_recursive(children1, chidren2):
-        for child1, child2 in zip(children1, chidren2):
+        for child1, child2 in zip(children1, chidren2, strict=False):
             assert_same_components(child1["id"], child2["id"])
             if "children" in child1 or "children" in child2:
                 same_children_recursive(child1["children"], child2["children"])
 
-    children1 = config1["layout"]["children"]
-    children2 = config2["layout"]["children"]
-    same_children_recursive(children1, children2)
+    if "layout" in config1:
+        if "layout" not in config2:
+            raise ValueError(
+                "The first config has a layout key, but the second does not"
+            )
+        children1 = config1["layout"]["children"]
+        children2 = config2["layout"]["children"]
+        same_children_recursive(children1, children2)
 
-    for d1, d2 in zip(config1["dependencies"], config2["dependencies"]):
-        for t1, t2 in zip(d1.pop("targets"), d2.pop("targets")):
-            assert_same_components(t1[0], t2[0])
-        for i1, i2 in zip(d1.pop("inputs"), d2.pop("inputs")):
-            assert_same_components(i1, i2)
-        for o1, o2 in zip(d1.pop("outputs"), d2.pop("outputs")):
-            assert_same_components(o1, o2)
-
-        if d1 != d2:
-            raise ValueError(f"{d1} does not match {d2}")
+    if "dependencies" in config1:
+        if "dependencies" not in config2:
+            raise ValueError(
+                "The first config has a dependencies key, but the second does not"
+            )
+        for d1, d2 in zip(
+            config1["dependencies"], config2["dependencies"], strict=False
+        ):
+            for t1, t2 in zip(d1.pop("targets"), d2.pop("targets"), strict=False):
+                assert_same_components(t1[0], t2[0])
+            for i1, i2 in zip(d1.pop("inputs"), d2.pop("inputs"), strict=False):
+                assert_same_components(i1, i2)
+            for o1, o2 in zip(d1.pop("outputs"), d2.pop("outputs"), strict=False):
+                assert_same_components(o1, o2)
+            if d1 != d2:
+                raise ValueError(f"{d1} does not match {d2}")
 
     return True
-
-
-def format_ner_list(input_string: str, ner_groups: list[dict[str, str | int]]):
-    if len(ner_groups) == 0:
-        return [(input_string, None)]
-
-    output = []
-    end = 0
-    prev_end = 0
-
-    for group in ner_groups:
-        entity, start, end = group["entity_group"], group["start"], group["end"]
-        output.append((input_string[prev_end:start], None))
-        output.append((input_string[start:end], entity))
-        prev_end = end
-
-    output.append((input_string[end:], None))
-    return output
 
 
 def delete_none(_dict: dict, skip_value: bool = False) -> dict:
@@ -423,6 +613,35 @@ def resolve_singleton(_list: list[Any] | Any) -> Any:
         return _list
 
 
+def get_all_components() -> list[type[Component] | type[BlockContext]]:
+    import gradio as gr
+
+    classes_to_check = (
+        gr.components.Component.__subclasses__()
+        + gr.blocks.BlockContext.__subclasses__()  # type: ignore
+    )
+    subclasses = []
+
+    while classes_to_check:
+        subclass = classes_to_check.pop()
+        classes_to_check.extend(subclass.__subclasses__())
+        subclasses.append(subclass)
+    return [
+        c
+        for c in subclasses
+        if c.__name__
+        not in ["ChatInterface", "Interface", "Blocks", "TabbedInterface", "NativePlot"]
+    ]
+
+
+def core_gradio_components():
+    return [
+        class_
+        for class_ in get_all_components()
+        if class_.__module__.startswith("gradio.")
+    ]
+
+
 def component_or_layout_class(cls_name: str) -> type[Component] | type[BlockContext]:
     """
     Returns the component, template, or layout class with the given class name, or
@@ -433,33 +652,23 @@ def component_or_layout_class(cls_name: str) -> type[Component] | type[BlockCont
     Returns:
     cls: the component class
     """
-    import gradio.blocks
-    import gradio.components
-    import gradio.layouts
-    import gradio.templates
+    import gradio.components as components_module
+    from gradio.components import Component
 
-    components = [
-        (name, cls)
-        for name, cls in gradio.components.__dict__.items()
-        if isinstance(cls, type)
-    ]
-    templates = [
-        (name, cls)
-        for name, cls in gradio.templates.__dict__.items()
-        if isinstance(cls, type)
-    ]
-    layouts = [
-        (name, cls)
-        for name, cls in gradio.layouts.__dict__.items()
-        if isinstance(cls, type)
-    ]
-    for name, cls in components + templates + layouts:
-        if name.lower() == cls_name.replace("_", "") and (
-            issubclass(cls, gradio.components.Component)
-            or issubclass(cls, gradio.blocks.BlockContext)
-        ):
-            return cls
-    raise ValueError(f"No such component or layout: {cls_name}")
+    components = {c.__name__.lower(): c for c in get_all_components()}
+    # add aliases such as 'text'
+    for name, cls in components_module.__dict__.items():
+        if isinstance(cls, type) and issubclass(cls, Component):
+            components[name.lower()] = cls
+
+    if cls_name.replace("_", "") in components:
+        return components[cls_name.replace("_", "")]
+
+    raise ValueError(
+        f"No such component or layout: {cls_name}. "
+        "It is possible it is a custom component, "
+        "in which case make sure it is installed and imported in your python session."
+    )
 
 
 def run_coro_in_background(func: Callable, *args, **kwargs):
@@ -516,8 +725,7 @@ class SyncToAsyncIterator:
 
 
 async def async_iteration(iterator):
-    # anext not introduced until 3.10 :(
-    return await iterator.__anext__()
+    return await anext(iterator)
 
 
 @contextmanager
@@ -540,12 +748,12 @@ def no_raise_exception():
         pass
 
 
-def sanitize_value_for_csv(value: str | Number) -> str | Number:
+def sanitize_value_for_csv(value: str | float) -> str | float:
     """
     Sanitizes a value that is being written to a CSV file to prevent CSV injection attacks.
     Reference: https://owasp.org/www-community/attacks/CSV_Injection
     """
-    if isinstance(value, Number):
+    if isinstance(value, (float, int)):
         return value
     unsafe_prefixes = ["=", "+", "-", "@", "\t", "\n"]
     unsafe_sequences = [",=", ",+", ",-", ",@", ",\t", ",\n"]
@@ -591,36 +799,17 @@ def validate_url(possible_url: str) -> bool:
     try:
         head_request = httpx.head(possible_url, headers=headers, follow_redirects=True)
         # some URLs, such as AWS S3 presigned URLs, return a 405 or a 403 for HEAD requests
-        if head_request.status_code == 405 or head_request.status_code == 403:
-            return httpx.get(possible_url, headers=headers).is_success
+        if head_request.status_code in (403, 405):
+            return httpx.get(
+                possible_url, headers=headers, follow_redirects=True
+            ).is_success
         return head_request.is_success
     except Exception:
         return False
 
 
-def is_update(val):
+def is_prop_update(val):
     return isinstance(val, dict) and "update" in val.get("__type__", "")
-
-
-def get_continuous_fn(fn: Callable, every: float) -> Callable:
-    # For Wasm-compatibility, we need to use asyncio.sleep() instead of time.sleep(),
-    # so we need to make the function async.
-    async def continuous_coro(*args):
-        while True:
-            output = fn(*args)
-            if isinstance(output, GeneratorType):
-                for item in output:
-                    yield item
-            elif isinstance(output, AsyncGeneratorType):
-                async for item in output:
-                    yield item
-            elif inspect.isawaitable(output):
-                yield await output
-            else:
-                yield output
-            await asyncio.sleep(every)
-
-    return continuous_coro
 
 
 def function_wrapper(
@@ -705,6 +894,7 @@ def get_function_with_locals(
     event_id: str | None,
     in_event_listener: bool,
     request: Request | None,
+    state: SessionState | None,
 ):
     def before_fn(blocks, event_id):
         from gradio.context import LocalContext
@@ -713,12 +903,15 @@ def get_function_with_locals(
         LocalContext.in_event_listener.set(in_event_listener)
         LocalContext.event_id.set(event_id)
         LocalContext.request.set(request)
+        if state:
+            LocalContext.blocks_config.set(state.blocks_config)
 
     def after_fn():
         from gradio.context import LocalContext
 
         LocalContext.in_event_listener.set(False)
         LocalContext.request.set(None)
+        LocalContext.blocks_config.set(None)
 
     return function_wrapper(
         fn,
@@ -728,85 +921,50 @@ def get_function_with_locals(
     )
 
 
-async def cancel_tasks(task_ids: set[str]):
-    matching_tasks = [
-        task for task in asyncio.all_tasks() if task.get_name() in task_ids
-    ]
-    for task in matching_tasks:
-        task.cancel()
+async def cancel_tasks(task_ids: set[str]) -> list[str]:
+    tasks = [(task, task.get_name()) for task in asyncio.all_tasks()]
+    event_ids: list[str] = []
+    matching_tasks = []
+    for task, name in tasks:
+        if "<gradio-sep>" not in name:
+            continue
+        task_id, event_id = name.split("<gradio-sep>")
+        if task_id in task_ids:
+            matching_tasks.append(task)
+            event_ids.append(event_id)
+            task.cancel()
     await asyncio.gather(*matching_tasks, return_exceptions=True)
+    return event_ids
 
 
-def set_task_name(task, session_hash: str, fn_index: int, batch: bool):
+def set_task_name(task, session_hash: str, fn_index: int, event_id: str, batch: bool):
     if not batch:
-        task.set_name(f"{session_hash}_{fn_index}")
+        task.set_name(f"{session_hash}_{fn_index}<gradio-sep>{event_id}")
 
 
-def get_cancel_function(
+def get_cancelled_fn_indices(
     dependencies: list[dict[str, Any]],
-) -> tuple[Callable, list[int]]:
-    fn_to_comp = {}
+) -> list[int]:
+    fn_indices = []
     for dep in dependencies:
-        if Context.root_block:
+        root_block = get_blocks_context()
+        if root_block:
             fn_index = next(
-                i for i, d in enumerate(Context.root_block.dependencies) if d == dep
+                i for i, d in root_block.fns.items() if d.get_config() == dep
             )
-            fn_to_comp[fn_index] = [
-                Context.root_block.blocks[o] for o in dep["outputs"]
-            ]
+            fn_indices.append(fn_index)
 
-    async def cancel(session_hash: str) -> None:
-        task_ids = {f"{session_hash}_{fn}" for fn in fn_to_comp}
-        await cancel_tasks(task_ids)
-
-    return (
-        cancel,
-        list(fn_to_comp.keys()),
-    )
+    return fn_indices
 
 
 def get_type_hints(fn):
-    # Importing gradio with the canonical abbreviation. Used in typing._eval_type.
-    import gradio as gr  # noqa: F401
-    from gradio import OAuthProfile, OAuthToken, Request  # noqa: F401
-
     if inspect.isfunction(fn) or inspect.ismethod(fn):
         pass
     elif callable(fn):
         fn = fn.__call__
     else:
         return {}
-
-    try:
-        return typing.get_type_hints(fn)
-    except TypeError:
-        # On Python 3.9 or earlier, get_type_hints throws a TypeError if the function
-        # has a type annotation that include "|". We resort to parsing the signature
-        # manually using inspect.signature.
-        type_hints = {}
-        sig = inspect.signature(fn)
-        for name, param in sig.parameters.items():
-            if param.annotation is inspect.Parameter.empty:
-                continue
-            if param.annotation == "gr.OAuthProfile | None":
-                # Special case: we want to inject the OAuthProfile value even on Python 3.9
-                type_hints[name] = Optional[OAuthProfile]
-            if param.annotation == "gr.OAuthToken | None":
-                # Special case: we want to inject the OAuthToken value even on Python 3.9
-                type_hints[name] = Optional[OAuthToken]
-            if "|" in str(param.annotation):
-                continue
-            # To convert the string annotation to a class, we use the
-            # internal typing._eval_type function. This is not ideal, but
-            # it's the only way to do it without eval-ing the string.
-            # Since the API is internal, it may change in the future.
-            try:
-                type_hints[name] = typing._eval_type(  # type: ignore
-                    typing.ForwardRef(param.annotation), globals(), locals()
-                )
-            except (NameError, TypeError):
-                pass
-        return type_hints
+    return typing.get_type_hints(fn)
 
 
 def is_special_typed_parameter(name, parameter_types):
@@ -818,7 +976,7 @@ def is_special_typed_parameter(name, parameter_types):
     hint = parameter_types.get(name)
     if not hint:
         return False
-    is_request = hint == Request
+    is_request = hint in (Request, Optional[Request])
     is_oauth_arg = hint in (
         OAuthProfile,
         Optional[OAuthProfile],
@@ -829,7 +987,7 @@ def is_special_typed_parameter(name, parameter_types):
     return is_request or is_event_data or is_oauth_arg
 
 
-def check_function_inputs_match(fn: Callable, inputs: list, inputs_as_dict: bool):
+def check_function_inputs_match(fn: Callable, inputs: Sequence, inputs_as_dict: bool):
     """
     Checks if the input component set matches the function
     Returns: None if valid or if the function does not have a signature (e.g. is a built in),
@@ -880,18 +1038,24 @@ class TupleNoPrint(tuple):
 
 class MatplotlibBackendMananger:
     def __enter__(self):
-        import matplotlib
+        try:
+            import matplotlib
 
-        self._original_backend = matplotlib.get_backend()
-        matplotlib.use("agg")
+            self._original_backend = matplotlib.get_backend()
+            matplotlib.use("agg")
+        except ImportError:
+            pass
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        import matplotlib
+        try:
+            import matplotlib
 
-        matplotlib.use(self._original_backend)
+            matplotlib.use(self._original_backend)
+        except ImportError:
+            pass
 
 
-def tex2svg(formula, *args):
+def tex2svg(formula, *_args):
     with MatplotlibBackendMananger():
         import matplotlib.pyplot as plt
 
@@ -928,41 +1092,86 @@ def tex2svg(formula, *args):
 
 
 def abspath(path: str | Path) -> Path:
-    """Returns absolute path of a str or Path path, but does not resolve symlinks."""
-    path = Path(path)
-
-    if path.is_absolute():
-        return path
-
-    # recursively check if there is a symlink within the path
-    is_symlink = path.is_symlink() or any(
-        parent.is_symlink() for parent in path.parents
-    )
-
-    if is_symlink or path == path.resolve():  # in case path couldn't be resolved
-        return Path.cwd() / path
-    else:
-        return path.resolve()
+    return Path(os.path.abspath(str(path)))
 
 
-def is_in_or_equal(path_1: str | Path, path_2: str | Path):
+def is_in_or_equal(path_1: str | Path, path_2: str | Path) -> bool:
     """
     True if path_1 is a descendant (i.e. located within) path_2 or if the paths are the
     same, returns False otherwise.
     Parameters:
-        path_1: str or Path (should be a file)
-        path_2: str or Path (can be a file or directory)
+        path_1: str or Path (to file or directory)
+        path_2: str or Path (to file or directory)
     """
-    path_1, path_2 = abspath(path_1), abspath(path_2)
+    path_1, path_2 = abspath(path_1).resolve(), abspath(path_2).resolve()
     try:
-        if ".." in str(path_1.relative_to(path_2)):  # prevent path traversal
-            return False
+        path_1.relative_to(path_2)
+        return True
     except ValueError:
         return False
-    return True
 
 
-HTML_TAG_RE = re.compile("<.*?>")
+@document()
+def set_static_paths(paths: str | Path | list[str | Path]) -> None:
+    """
+    Set the static paths to be served by the gradio app.
+
+    Static files are are served directly from the file system instead of being copied. They are served to users with The Content-Disposition HTTP header set to "inline"
+    when sending these files to users. This indicates that the file should be displayed directly in the browser window if possible.
+    This function is useful when you want to serve files that you know will not be modified during the lifetime of the gradio app (like files used in gr.Examples).
+    By setting static paths, your app will launch faster and it will consume less disk space.
+    Calling this function will set the static paths for all gradio applications defined in the same interpreter session until it is called again or the session ends.
+
+    Parameters:
+        paths: filepath or list of filepaths or directory names to be served by the gradio app. If it is a directory name, ALL files located within that directory will be considered static and not moved to the gradio cache. This also means that ALL files in that directory will be accessible over the network.
+    Example:
+        import gradio as gr
+
+        # Paths can be a list of strings or pathlib.Path objects
+        # corresponding to filenames or directories.
+        gr.set_static_paths(paths=["test/test_files/"])
+
+        # The example files and the default value of the input
+        # will not be copied to the gradio cache and will be served directly.
+        demo = gr.Interface(
+            lambda s: s.rotate(45),
+            gr.Image(value="test/test_files/cheetah1.jpg", type="pil"),
+            gr.Image(),
+            examples=["test/test_files/bus.png"],
+        )
+
+        demo.launch()
+    """
+    from gradio.data_classes import _StaticFiles
+
+    if isinstance(paths, (str, Path)):
+        paths = [Path(paths)]
+    _StaticFiles.all_paths.extend([Path(p).resolve() for p in paths])
+
+
+def is_static_file(file_path: Any):
+    """Returns True if the file is a static file (and not moved to cache)"""
+    from gradio.data_classes import _StaticFiles
+
+    return _is_static_file(file_path, _StaticFiles.all_paths)
+
+
+def _is_static_file(file_path: Any, static_files: list[Path]) -> bool:
+    """
+    Returns True if the file is a static file (i.e. is is in the static files list).
+    """
+    if not isinstance(file_path, (str, Path, FileData)):
+        return False
+    if isinstance(file_path, FileData):
+        file_path = file_path.path
+    if isinstance(file_path, str):
+        file_path = Path(file_path)
+        if not file_path.exists():
+            return False
+    return any(is_in_or_equal(file_path, static_file) for static_file in static_files)
+
+
+HTML_TAG_RE = re.compile("<[^\n>]*(?:\n[^\n>]*)*>", re.DOTALL)
 
 
 def remove_html_tags(raw_html: str | None) -> str:
@@ -1018,12 +1227,6 @@ def get_extension_from_file_path_or_url(file_path_or_url: str) -> str:
     return file_extension[1:] if file_extension else ""
 
 
-def convert_to_dict_if_dataclass(value):
-    if dataclasses.is_dataclass(value):
-        return dataclasses.asdict(value)
-    return value
-
-
 K = TypeVar("K")
 V = TypeVar("V")
 
@@ -1040,9 +1243,12 @@ class LRUCache(OrderedDict, Generic[K, V]):
             self.popitem(last=False)
         super().__setitem__(key, value)
 
+    def __getitem__(self, key: K) -> V:
+        return super().__getitem__(key)
+
 
 def get_cache_folder() -> Path:
-    return Path(os.environ.get("GRADIO_EXAMPLES_CACHE", "gradio_cached_examples"))
+    return Path(os.environ.get("GRADIO_EXAMPLES_CACHE", ".gradio/cached_examples"))
 
 
 def diff(old, new):
@@ -1054,7 +1260,7 @@ def diff(old, new):
         if obj1 == obj2:
             return edits
 
-        if type(obj1) != type(obj2):
+        if type(obj1) is not type(obj2):
             edits.append(("replace", path, obj2))
             return edits
 
@@ -1087,3 +1293,359 @@ def diff(old, new):
         return edits
 
     return compare_objects(old, new)
+
+
+def get_upload_folder() -> str:
+    return os.environ.get("GRADIO_TEMP_DIR") or str(
+        (Path(tempfile.gettempdir()) / "gradio").resolve()
+    )
+
+
+def get_function_params(func: Callable) -> list[tuple[str, bool, Any, Any]]:
+    """
+    Gets the parameters of a function as a list of tuples of the form (name, has_default, default_value, type_hint).
+    Excludes *args and **kwargs, as well as args that are Gradio-specific, such as gr.Request, gr.EventData, gr.OAuthProfile, and gr.OAuthToken.
+    """
+    params_info = []
+    signature = inspect.signature(func)
+    type_hints = get_type_hints(func)
+    for name, parameter in signature.parameters.items():
+        if parameter.kind in (
+            inspect.Parameter.VAR_POSITIONAL,
+            inspect.Parameter.VAR_KEYWORD,
+        ):
+            break
+        if is_special_typed_parameter(name, type_hints):
+            continue
+        if parameter.default is inspect.Parameter.empty:
+            params_info.append((name, False, None, type_hints.get(name, None)))
+        else:
+            params_info.append(
+                (name, True, parameter.default, type_hints.get(name, None))
+            )
+    return params_info
+
+
+def get_return_types(func: Callable) -> list:
+    return_hint = inspect.signature(func).return_annotation
+
+    if return_hint in {inspect.Signature.empty, None, NoneType}:
+        return []
+
+    if get_origin(return_hint) is tuple:
+        return list(get_args(return_hint))
+
+    return [return_hint]
+
+
+def simplify_file_data_in_str(s):
+    """
+    If a FileData dictionary has been dumped as part of a string, this function will replace the dict with just the str filepath
+    """
+    try:
+        payload = json.loads(s)
+    except json.JSONDecodeError:
+        return s
+    payload = client_utils.traverse(
+        payload, lambda x: x["path"], client_utils.is_file_obj_with_meta
+    )
+    if isinstance(payload, str):
+        return payload
+    return json.dumps(payload)
+
+
+def sync_fn_to_generator(fn):
+    def wrapped(*args, **kwargs):
+        yield fn(*args, **kwargs)
+
+    return wrapped
+
+
+def async_fn_to_generator(fn):
+    async def wrapped(*args, **kwargs):
+        yield await fn(*args, **kwargs)
+
+    return wrapped
+
+
+def async_lambda(f: Callable) -> Callable:
+    """Turn a function into an async function.
+    Useful for internal event handlers defined as lambda functions used in the codebase
+    """
+
+    @wraps(f)
+    async def function_wrapper(*args, **kwargs):
+        return f(*args, **kwargs)
+
+    return function_wrapper
+
+
+class FileSize:
+    B = 1
+    KB = 1024 * B
+    MB = 1024 * KB
+    GB = 1024 * MB
+    TB = 1024 * GB
+
+
+def _parse_file_size(size: str | int | None) -> int | None:
+    if isinstance(size, int) or size is None:
+        return size
+
+    size = size.replace(" ", "")
+
+    last_digit_index = next(
+        (i for i, c in enumerate(size) if not c.isdigit()), len(size)
+    )
+    size_int, unit = int(size[:last_digit_index]), size[last_digit_index:].upper()
+    multiple = getattr(FileSize, unit, None)
+    if not multiple:
+        raise ValueError(f"Invalid file size unit: {unit}")
+    return multiple * size_int
+
+
+def connect_heartbeat(config: BlocksConfigDict, blocks) -> bool:
+    """
+    Determines whether a heartbeat is required for a given config.
+    """
+    from gradio.components import State
+
+    any_state = any(isinstance(block, State) for block in blocks)
+    any_unload = False
+    any_stream = False
+
+    if "dependencies" not in config:
+        raise ValueError(
+            "Dependencies not found in config. Cannot determine whether"
+            "heartbeat is required."
+        )
+
+    for dep in config["dependencies"]:
+        for target in dep["targets"]:
+            if isinstance(target, (list, tuple)) and len(target) == 2:
+                any_unload = target[1] == "unload"
+                if any_unload:
+                    break
+                any_stream = target[1] == "stream"
+                if any_stream:
+                    break
+    return any_state or any_unload or any_stream
+
+
+def deep_hash(obj):
+    """Compute a hash for a deeply nested data structure."""
+    hasher = hashlib.sha256()
+    if isinstance(obj, (int, float, str, bytes)):
+        items = obj
+    elif isinstance(obj, dict):
+        items = tuple(
+            [
+                (k, deep_hash(v))
+                for k, v in sorted(obj.items(), key=lambda x: hash(x[0]))
+            ]
+        )
+    elif isinstance(obj, (list, tuple)):
+        items = tuple(deep_hash(x) for x in obj)
+    elif isinstance(obj, set):
+        items = tuple(deep_hash(x) for x in sorted(obj, key=hash))
+    elif isinstance(obj, Hashable):
+        items = str(hash(obj)).encode("utf-8")
+    else:
+        items = str(id(obj)).encode("utf-8")
+    hasher.update(repr(items).encode("utf-8"))
+    return hasher.hexdigest()
+
+
+def error_payload(
+    error: BaseException | None, show_error: bool
+) -> dict[str, bool | str | float | None]:
+    content: dict[str, bool | str | float | None] = {"error": None}
+    show_error = show_error or isinstance(error, Error)
+    if show_error:
+        if isinstance(error, Error):
+            content["error"] = error.message
+            content["duration"] = error.duration
+            content["visible"] = error.visible
+            content["title"] = error.title
+        else:
+            content["error"] = str(error)
+    return content
+
+
+class UnhashableKeyDict(MutableMapping):
+    """
+    Essentially a list of key-value tuples that allows for keys that are not hashable,
+    but acts like a dictionary for convenience.
+    """
+
+    def __init__(self):
+        self.data = []
+
+    def __getitem__(self, key):
+        for k, v in self.data:
+            if deep_equal(k, key):
+                return v
+        raise KeyError(key)
+
+    def __setitem__(self, key, value):
+        for i, (k, _) in enumerate(self.data):
+            if deep_equal(k, key):
+                self.data[i] = (key, value)
+                return
+        self.data.append((key, value))
+
+    def __delitem__(self, key):
+        for i, (k, _) in enumerate(self.data):
+            if deep_equal(k, key):
+                del self.data[i]
+                return
+        raise KeyError(key)
+
+    def __iter__(self):
+        return (k for k, _ in self.data)
+
+    def __len__(self):
+        return len(self.data)
+
+    def as_list(self):
+        return [v for _, v in self.data]
+
+
+def safe_join(directory: DeveloperPath, path: UserProvidedPath) -> str:
+    """Safely path to a base directory to avoid escaping the base directory.
+    Borrowed from: werkzeug.security.safe_join"""
+    _os_alt_seps: list[str] = [
+        sep for sep in [os.path.sep, os.path.altsep] if sep is not None and sep != "/"
+    ]
+
+    filename = posixpath.normpath(path)
+    fullpath = os.path.join(directory, filename)
+    if (
+        any(sep in filename for sep in _os_alt_seps)
+        or os.path.isabs(filename)
+        or filename == ".."
+        or filename.startswith("../")
+    ):
+        raise InvalidPathError()
+
+    return fullpath
+
+
+def is_allowed_file(
+    path: Path,
+    blocked_paths: Sequence[str | Path],
+    allowed_paths: Sequence[str | Path],
+    created_paths: Sequence[str | Path],
+) -> tuple[
+    bool, Literal["in_blocklist", "allowed", "created", "not_created_or_allowed"]
+]:
+    in_blocklist = any(
+        is_in_or_equal(str(path).lower(), str(blocked_path).lower())
+        for blocked_path in blocked_paths
+    )
+    if in_blocklist:
+        return False, "in_blocklist"
+    if any(is_in_or_equal(path, allowed_path) for allowed_path in allowed_paths):
+        return True, "allowed"
+    if any(is_in_or_equal(path, created_path) for created_path in created_paths):
+        return True, "created"
+    return False, "not_created_or_allowed"
+
+
+def get_node_path():
+    env_node_path = os.environ.get("GRADIO_NODE_PATH")
+    if env_node_path:
+        return env_node_path
+
+    which_node_path = shutil.which("node")
+    if which_node_path:
+        return which_node_path
+
+    try:
+        # On Windows, try using 'where' command
+        if sys.platform == "win32":
+            windows_path = (
+                subprocess.check_output(["where", "node"])
+                .decode()
+                .strip()
+                .split("\r\n")[0]
+            )
+            # Verify the path exists
+            if os.path.exists(windows_path):
+                return windows_path
+        # Try using the 'which' command on Unix-like systems
+        else:
+            return subprocess.check_output(["which", "node"]).decode().strip()
+
+    except subprocess.CalledProcessError:
+        # Command failed, fall back to checking common install locations
+        pass
+
+    # Check common install locations
+    common_paths = [
+        sys.executable,
+        "/usr/bin/node",
+        "/usr/local/bin/node",
+        "C:\\Program Files\\nodejs\\node.exe",
+        "C:\\Program Files (x86)\\nodejs\\node.exe",
+    ]
+
+    for node_path in common_paths:
+        if os.path.exists(node_path):
+            return node_path
+
+    # Check PATH environment variable
+    env_path = os.environ.get("PATH", "")
+    path_dirs = env_path.split(os.pathsep)
+
+    for directory in path_dirs:
+        full_path = os.path.join(
+            directory, "node.exe" if sys.platform == "win32" else "node"
+        )
+        if os.path.exists(full_path):
+            return full_path
+
+    print("Unable to find node install path, falling back to SPA mode.")
+    print(
+        "If you wish to use the node backend, please install node 20 and/ or set the path with the GRADIO_NODE_PATH environment variable."
+    )
+    return None
+
+
+def none_or_singleton_to_list(value: Any) -> list:
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple)):
+        return list(value)
+    return [value]
+
+
+def get_icon_path(icon_name: str) -> str:
+    """Get the path to an icon file in the "gradio/icons/" directory
+    and return it as a static file path so that it can be used by components.
+
+    Parameters:
+        icon_name: Name of the icon file (e.g. "plus.svg")
+    Returns:
+        str: Full path to the icon file served as a static file
+    """
+    icon_path = str(
+        importlib.resources.files("gradio").joinpath(str(Path("icons") / icon_name))
+    )
+    if Path(icon_path).exists():
+        set_static_paths(icon_path)
+        return icon_path
+    raise ValueError(f"Icon file not found: {icon_name}")
+
+
+def dict_factory(items):
+    """
+    A utility function to convert a dataclass that includes pydantic fields to a dictionary.
+    """
+    d = {}
+    for key, value in items:
+        if hasattr(value, "model_dump"):
+            d[key] = value.model_dump()
+        else:
+            d[key] = value
+    return d

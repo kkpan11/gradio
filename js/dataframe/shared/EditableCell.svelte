@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { createEventDispatcher } from "svelte";
-	import { MarkdownCode } from "@gradio/markdown";
+	import { MarkdownCode } from "@gradio/markdown-code";
 
 	export let edit: boolean;
 	export let value: string | number = "";
@@ -20,9 +20,9 @@
 		display: boolean;
 	}[];
 	export let clear_on_focus = false;
-	export let select_on_focus = false;
 	export let line_breaks = true;
 	export let editable = true;
+	export let root: string;
 
 	const dispatch = createEventDispatcher();
 
@@ -33,11 +33,10 @@
 		if (clear_on_focus) {
 			_value = "";
 		}
-		if (select_on_focus) {
-			node.select();
-		}
 
-		node.focus();
+		requestAnimationFrame(() => {
+			node.focus();
+		});
 
 		return {};
 	}
@@ -50,6 +49,14 @@
 		value = currentTarget.value;
 		dispatch("blur");
 	}
+
+	function handle_keydown(event: KeyboardEvent): void {
+		if (event.key === "Enter") {
+			value = _value;
+			dispatch("blur");
+		}
+		dispatch("keydown", event);
+	}
 </script>
 
 {#if edit}
@@ -60,8 +67,11 @@
 		class:header
 		tabindex="-1"
 		on:blur={handle_blur}
+		on:mousedown|stopPropagation
+		on:mouseup|stopPropagation
+		on:click|stopPropagation
 		use:use_focus
-		on:keydown
+		on:keydown={handle_keydown}
 	/>
 {/if}
 
@@ -72,6 +82,8 @@
 	class:edit
 	on:focus|preventDefault
 	style={styling}
+	class="table-cell-text"
+	placeholder=" "
 >
 	{#if datatype === "html"}
 		{@html value}
@@ -81,6 +93,7 @@
 			{latex_delimiters}
 			{line_breaks}
 			chatbot={false}
+			{root}
 		/>
 	{:else}
 		{editable ? value : display_value || value}
@@ -99,6 +112,7 @@
 		outline: none;
 		border: none;
 		background: transparent;
+		cursor: text;
 	}
 
 	span {
@@ -109,11 +123,12 @@
 		-moz-user-select: text;
 		-ms-user-select: text;
 		user-select: text;
+		cursor: text;
 	}
 
 	.header {
 		transform: translateX(0);
-		font: var(--weight-bold);
+		font-weight: var(--weight-bold);
 	}
 
 	.edit {

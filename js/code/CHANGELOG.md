@@ -1,5 +1,548 @@
 # @gradio/code
 
+## 0.10.13
+
+### Dependency updates
+
+- @gradio/upload@0.14.6
+- @gradio/wasm@0.17.0
+- @gradio/statustracker@0.10.2
+
+## 0.10.12
+
+### Dependency updates
+
+- @gradio/atoms@0.13.1
+- @gradio/statustracker@0.10.1
+- @gradio/icons@0.10.0
+- @gradio/upload@0.14.5
+
+## 0.10.11
+
+### Dependency updates
+
+- @gradio/atoms@0.13.0
+- @gradio/utils@0.10.0
+- @gradio/upload@0.14.4
+- @gradio/icons@0.9.0
+- @gradio/statustracker@0.10.0
+- @gradio/wasm@0.16.0
+
+## 0.10.10
+
+### Dependency updates
+
+- @gradio/statustracker@0.9.7
+- @gradio/upload@0.14.3
+- @gradio/atoms@0.12.0
+
+## 0.10.9
+
+### Dependency updates
+
+- @gradio/atoms@0.11.2
+- @gradio/utils@0.9.0
+- @gradio/statustracker@0.9.6
+- @gradio/upload@0.14.2
+
+## 0.10.8
+
+### Dependency updates
+
+- @gradio/atoms@0.11.1
+- @gradio/utils@0.8.0
+- @gradio/upload@0.14.1
+- @gradio/statustracker@0.9.5
+
+## 0.10.7
+
+### Dependency updates
+
+- @gradio/statustracker@0.9.4
+- @gradio/atoms@0.11.0
+- @gradio/upload@0.14.0
+- @gradio/wasm@0.15.0
+
+## 0.10.6
+
+### Dependency updates
+
+- @gradio/statustracker@0.9.3
+- @gradio/atoms@0.10.1
+- @gradio/upload@0.13.5
+
+## 0.10.5
+
+### Dependency updates
+
+- @gradio/statustracker@0.9.2
+- @gradio/atoms@0.10.0
+- @gradio/icons@0.8.1
+- @gradio/upload@0.13.4
+
+## 0.10.4
+
+### Dependency updates
+
+- @gradio/statustracker@0.9.1
+- @gradio/upload@0.13.3
+- @gradio/atoms@0.9.2
+
+## 0.10.3
+
+### Dependency updates
+
+- @gradio/atoms@0.9.1
+- @gradio/statustracker@0.9.0
+- @gradio/upload@0.13.2
+- @gradio/wasm@0.14.2
+
+## 0.10.2
+
+### Dependency updates
+
+- @gradio/upload@0.13.1
+- @gradio/wasm@0.14.1
+
+## 0.10.1
+
+### Dependency updates
+
+- @gradio/statustracker@0.8.1
+
+## 0.10.0
+
+### Features
+
+- [#8843](https://github.com/gradio-app/gradio/pull/8843) [`6f95286`](https://github.com/gradio-app/gradio/commit/6f95286337459efbccb95c9cfac63355669df9ee) - Improve `gr.Code`
+- [#8843](https://github.com/gradio-app/gradio/pull/8843) [`6f95286`](https://github.com/gradio-app/gradio/commit/6f95286337459efbccb95c9cfac63355669df9ee) - Add Jinja2 language to Code component
+- [#8843](https://github.com/gradio-app/gradio/pull/8843) [`6f95286`](https://github.com/gradio-app/gradio/commit/6f95286337459efbccb95c9cfac63355669df9ee) - Added max lines and overflow scrollbar for `gr.Code`
+
+### Dependencies
+
+- @gradio/atoms@0.9.0
+- @gradio/icons@0.8.0
+- @gradio/statustracker@0.8.0
+- @gradio/upload@0.13.0
+- @gradio/utils@0.7.0
+- @gradio/wasm@0.14.0
+
+## 0.10.0-beta.8
+
+### Dependency updates
+
+- @gradio/upload@0.13.0-beta.7
+- @gradio/statustracker@0.8.0-beta.5
+- @gradio/icons@0.8.0-beta.4
+- @gradio/atoms@0.9.0-beta.5
+
+## 0.10.0-beta.7
+
+### Dependency updates
+
+- @gradio/statustracker@0.8.0-beta.4
+- @gradio/atoms@0.9.0-beta.4
+- @gradio/upload@0.13.0-beta.6
+
+## 0.10.0-beta.6
+
+### Features
+
+- [#9545](https://github.com/gradio-app/gradio/pull/9545) [`098a009`](https://github.com/gradio-app/gradio/commit/098a009c05243967bd9e5acc28864eb40a135f6a) - Add Jinja2 language to Code component.  Thanks @CISC!
+
+## 0.10.0-beta.5
+
+### Features
+
+- [#9450](https://github.com/gradio-app/gradio/pull/9450) [`991883e`](https://github.com/gradio-app/gradio/commit/991883e217dc0a3512b3ae3245378812f373b8db) - Improve `gr.Code`.  Thanks @hannahblair!
+
+### Dependency updates
+
+- @gradio/upload@0.13.0-beta.5
+- @gradio/statustracker@0.8.0-beta.3
+- @gradio/icons@0.8.0-beta.3
+- @gradio/atoms@0.9.0-beta.3
+
+## 0.10.0-beta.4
+
+### Dependency updates
+
+- @gradio/statustracker@0.8.0-beta.2
+- @gradio/upload@0.13.0-beta.4
+- @gradio/wasm@0.14.0-beta.3
+
+## 0.10.0-beta.3
+
+### Dependency updates
+
+- @gradio/upload@0.13.0-beta.3
+
+## 0.10.0-beta.2
+
+### Features
+
+- [#9311](https://github.com/gradio-app/gradio/pull/9311) [`c4afdcd`](https://github.com/gradio-app/gradio/commit/c4afdcdb1f1f80c5f95ab45d527236e9364ace82) - Added max lines and overflow scrollbar for `gr.Code`.  Thanks @micpst!
+
+### Dependency updates
+
+- @gradio/atoms@0.9.0-beta.2
+- @gradio/upload@0.13.0-beta.2
+- @gradio/wasm@0.14.0-beta.2
+- @gradio/icons@0.8.0-beta.2
+- @gradio/statustracker@0.8.0-beta.2
+- @gradio/utils@0.7.0-beta.2
+
+## 0.9.1-beta.1
+
+### Features
+
+- [#9187](https://github.com/gradio-app/gradio/pull/9187) [`5bf00b7`](https://github.com/gradio-app/gradio/commit/5bf00b7524ebf399b48719120a49d15bb21bd65c) - make all component SSR compatible.  Thanks @pngwn!
+
+### Dependency updates
+
+- @gradio/atoms@0.8.1-beta.1
+- @gradio/icons@0.8.0-beta.1
+- @gradio/statustracker@0.8.0-beta.1
+- @gradio/utils@0.7.0-beta.1
+- @gradio/upload@0.12.4-beta.1
+- @gradio/wasm@0.13.1-beta.1
+
+## 0.9.1-beta.0
+
+### Fixes
+
+- [#9163](https://github.com/gradio-app/gradio/pull/9163) [`2b6cbf2`](https://github.com/gradio-app/gradio/commit/2b6cbf25908e42cf027324e54ef2cc0baad11a91) - fix exports and generate types.  Thanks @pngwn!
+
+### Dependency updates
+
+- @gradio/utils@0.6.1
+- @gradio/statustracker@0.7.6
+- @gradio/atoms@0.8.1
+- @gradio/icons@0.7.2
+- @gradio/wasm@0.13.1
+- @gradio/upload@0.12.4
+
+## 0.9.0
+
+### Features
+
+- [#9013](https://github.com/gradio-app/gradio/pull/9013) [`5350f1f`](https://github.com/gradio-app/gradio/commit/5350f1feb20cb7458d188403f319c5087052f695) - Add copy all messages button to chatbot.  Thanks @hannahblair!
+- [#9118](https://github.com/gradio-app/gradio/pull/9118) [`e1c404d`](https://github.com/gradio-app/gradio/commit/e1c404da1143fb52b659d03e028bdba1badf443d) - setup npm-previews of all packages.  Thanks @pngwn!
+
+### Dependency updates
+
+- @gradio/utils@0.6.0
+- @gradio/upload@0.12.3
+- @gradio/atoms@0.8.0
+- @gradio/statustracker@0.7.5
+- @gradio/wasm@0.13.0
+- @gradio/icons@0.7.1
+
+## 0.8.2
+
+### Dependency updates
+
+- @gradio/atoms@0.7.9
+- @gradio/statustracker@0.7.4
+- @gradio/icons@0.7.0
+- @gradio/upload@0.12.2
+
+## 0.8.1
+
+### Fixes
+
+- [#8949](https://github.com/gradio-app/gradio/pull/8949) [`1e16f67`](https://github.com/gradio-app/gradio/commit/1e16f67ba2a02761d4b73afd723f8edc3c3124e9) - Fix check icon in gr.JSON and gr.Code.  Thanks @hannahblair!
+- [#8931](https://github.com/gradio-app/gradio/pull/8931) [`4c2d37d`](https://github.com/gradio-app/gradio/commit/4c2d37db849848fd38ba733a23a5aaceeaf58faf) - Add background to gr.Code line numbers.  Thanks @hannahblair!
+
+### Dependency updates
+
+- @gradio/atoms@0.7.8
+- @gradio/icons@0.6.1
+- @gradio/utils@0.5.2
+- @gradio/statustracker@0.7.3
+- @gradio/upload@0.12.1
+
+## 0.8.0
+
+### Features
+
+- [#8804](https://github.com/gradio-app/gradio/pull/8804) [`1d09925`](https://github.com/gradio-app/gradio/commit/1d09925469a5f96e8d3a972a28841903fa1c7265) - Fix Lite's <Playground />.  Thanks @whitphx!
+
+### Dependency updates
+
+- @gradio/wasm@0.12.0
+- @gradio/statustracker@0.7.2
+- @gradio/upload@0.12.0
+- @gradio/atoms@0.7.7
+
+## 0.7.0
+
+### Features
+
+- [#8665](https://github.com/gradio-app/gradio/pull/8665) [`3b8238c`](https://github.com/gradio-app/gradio/commit/3b8238c2e222a6537b19b8901198b7e369e8319a) - Add c/cpp code support.  Thanks @ginazhouhuiwu!
+
+### Dependency updates
+
+- @gradio/atoms@0.7.6
+- @gradio/utils@0.5.1
+- @gradio/statustracker@0.7.1
+- @gradio/upload@0.11.5
+- @gradio/icons@0.6.0
+
+## 0.6.13
+
+### Dependency updates
+
+- @gradio/upload@0.11.4
+
+## 0.6.12
+
+### Dependency updates
+
+- @gradio/atoms@0.7.5
+- @gradio/utils@0.5.0
+- @gradio/icons@0.5.0
+- @gradio/wasm@0.11.0
+- @gradio/statustracker@0.7.0
+- @gradio/upload@0.11.3
+
+## 0.6.11
+
+### Dependency updates
+
+- @gradio/upload@0.11.2
+
+## 0.6.10
+
+### Dependency updates
+
+- @gradio/upload@0.11.1
+
+## 0.6.9
+
+### Dependency updates
+
+- @gradio/statustracker@0.6.0
+- @gradio/upload@0.11.0
+
+## 0.6.8
+
+### Dependency updates
+
+- @gradio/upload@0.10.7
+
+## 0.6.7
+
+### Dependency updates
+
+- @gradio/statustracker@0.6.0
+- @gradio/upload@0.10.6
+
+## 0.6.6
+
+### Dependency updates
+
+- @gradio/utils@0.4.2
+- @gradio/atoms@0.7.4
+- @gradio/statustracker@0.5.5
+- @gradio/upload@0.10.5
+
+## 0.6.5
+
+### Dependency updates
+
+- @gradio/statustracker@0.5.4
+- @gradio/upload@0.10.4
+
+## 0.6.4
+
+### Dependency updates
+
+- @gradio/upload@0.10.3
+
+## 0.6.3
+
+### Dependency updates
+
+- @gradio/statustracker@0.5.3
+- @gradio/upload@0.10.2
+
+## 0.6.2
+
+### Dependency updates
+
+- @gradio/atoms@0.7.3
+- @gradio/statustracker@0.5.2
+- @gradio/icons@0.4.1
+- @gradio/upload@0.10.1
+
+## 0.6.1
+
+### Dependency updates
+
+- @gradio/atoms@0.7.2
+- @gradio/upload@0.10.0
+- @gradio/utils@0.4.1
+- @gradio/wasm@0.10.1
+- @gradio/statustracker@0.5.1
+
+## 0.6.0
+
+### Highlights
+
+#### Setting File Upload Limits ([#7909](https://github.com/gradio-app/gradio/pull/7909) [`2afca65`](https://github.com/gradio-app/gradio/commit/2afca6541912b37dc84f447c7ad4af21607d7c72))
+
+We have added a `max_file_size` size parameter to `launch()` that limits to size of files uploaded to the server. This limit applies to each individual file. This parameter can be specified as a string or an integer (corresponding to the size in bytes).
+
+The following code snippet sets a max file size of 5 megabytes.
+
+```python
+import gradio as gr
+
+demo = gr.Interface(lambda x: x, "image", "image")
+
+demo.launch(max_file_size="5mb")
+# or
+demo.launch(max_file_size=5 * gr.FileSize.MB)
+```
+
+![max_file_size_upload](https://github.com/gradio-app/gradio/assets/41651716/7547330c-a082-4901-a291-3f150a197e45)
+
+
+#### Error states can now be cleared
+
+When a component encounters an error, the error state shown in the UI can now be cleared by clicking on the `x` icon in the top right of the component. This applies to all types of errors, whether it's raised in the UI or the server.
+
+![error_modal_calculator](https://github.com/gradio-app/gradio/assets/41651716/16cb071c-accd-45a6-9c18-0dea27d4bd98)
+
+ Thanks @freddyaboulton!
+
+### Fixes
+
+- [#8066](https://github.com/gradio-app/gradio/pull/8066) [`624f9b9`](https://github.com/gradio-app/gradio/commit/624f9b9477f74a581a6c14119234f9efdfcda398) - make gradio dev tools a local dependency rather than bundling.  Thanks @pngwn!
+
+### Dependency updates
+
+- @gradio/atoms@0.7.1
+- @gradio/statustracker@0.5.0
+- @gradio/upload@0.9.0
+- @gradio/utils@0.4.0
+
+## 0.5.12
+
+### Dependency updates
+
+- @gradio/utils@0.3.2
+- @gradio/statustracker@0.4.12
+- @gradio/upload@0.8.5
+- @gradio/atoms@0.7.0
+- @gradio/icons@0.4.0
+
+## 0.5.11
+
+### Dependency updates
+
+- @gradio/utils@0.3.1
+- @gradio/atoms@0.6.2
+- @gradio/statustracker@0.4.11
+- @gradio/upload@0.8.4
+
+## 0.5.10
+
+### Dependency updates
+
+- @gradio/upload@0.8.3
+
+## 0.5.9
+
+### Dependency updates
+
+- @gradio/atoms@0.6.1
+- @gradio/statustracker@0.4.10
+- @gradio/icons@0.3.4
+- @gradio/upload@0.8.2
+
+## 0.5.8
+
+### Dependency updates
+
+- @gradio/upload@0.8.1
+- @gradio/statustracker@0.4.9
+- @gradio/wasm@0.10.0
+- @gradio/atoms@0.6.0
+
+## 0.5.7
+
+### Dependency updates
+
+- @gradio/upload@0.8.0
+- @gradio/wasm@0.9.0
+
+## 0.5.6
+
+### Dependency updates
+
+- @gradio/upload@0.7.7
+- @gradio/wasm@0.8.0
+
+## 0.5.5
+
+### Patch Changes
+
+- Updated dependencies [[`8181695`](https://github.com/gradio-app/gradio/commit/8181695e70187e8bc2bf7518697098c8d1b9843d)]:
+  - @gradio/upload@0.7.6
+
+## 0.5.4
+
+### Patch Changes
+
+- Updated dependencies [[`26356a6`](https://github.com/gradio-app/gradio/commit/26356a623c4196f48ca236d973a597831743cdb8), [`9c6de6d`](https://github.com/gradio-app/gradio/commit/9c6de6d85092c1c9378d7f81e5ec734221536812), [`4b0d589`](https://github.com/gradio-app/gradio/commit/4b0d58933057432758a54169a360eb352903d6b4), [`561579d`](https://github.com/gradio-app/gradio/commit/561579d9b7b860c5cb3f8131e0dced0c8114463f)]:
+  - @gradio/upload@0.7.5
+  - @gradio/wasm@0.7.0
+
+## 0.5.3
+
+### Patch Changes
+
+- Updated dependencies [[`98a2719`](https://github.com/gradio-app/gradio/commit/98a2719bfb9c64338caf9009891b6c6b0b33ea89)]:
+  - @gradio/statustracker@0.4.8
+
+## 0.5.2
+
+### Patch Changes
+
+- Updated dependencies [[`f191786`](https://github.com/gradio-app/gradio/commit/f1917867916647d383b8d7ce15e0c17f2abbdec1)]:
+  - @gradio/icons@0.3.3
+  - @gradio/atoms@0.5.3
+  - @gradio/statustracker@0.4.7
+  - @gradio/upload@0.7.4
+
+## 0.5.1
+
+### Patch Changes
+
+- Updated dependencies [[`065c5b1`](https://github.com/gradio-app/gradio/commit/065c5b163c4badb9d9cbd06d627fb4ba086003e7)]:
+  - @gradio/utils@0.3.0
+  - @gradio/atoms@0.5.2
+  - @gradio/statustracker@0.4.6
+  - @gradio/upload@0.7.3
+
+## 0.5.0
+
+### Features
+
+- [#7328](https://github.com/gradio-app/gradio/pull/7328) [`c1a7ea7`](https://github.com/gradio-app/gradio/commit/c1a7ea7c0c294aa970624f02225717c12bcf9b58) - Add SQL Support for gr.Code. Thanks [@aersam](https://github.com/aersam)!
+
+## 0.4.0
+
+### Features
+
+- [#7240](https://github.com/gradio-app/gradio/pull/7240) [`1893756`](https://github.com/gradio-app/gradio/commit/18937564ab8906710549d5bccc48f7188c836f38) - Small cleanups of `Code` component. Thanks [@abidlabs](https://github.com/abidlabs)!
+
+### Fixes
+
+- [#7192](https://github.com/gradio-app/gradio/pull/7192) [`8dd6f4b`](https://github.com/gradio-app/gradio/commit/8dd6f4bc1901792f05cd59e86df7b1dbab692739) - Handle the case where examples is `null` for all components. Thanks [@abidlabs](https://github.com/abidlabs)!
+
 ## 0.3.8
 
 ### Patch Changes

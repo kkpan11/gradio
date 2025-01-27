@@ -1,13 +1,12 @@
 from __future__ import annotations
 
+import warnings
 from typing import Literal
 
-from gradio_client.documentation import document, set_documentation_group
+from gradio_client.documentation import document
 
 from gradio.blocks import BlockContext
 from gradio.component_meta import ComponentMeta
-
-set_documentation_group("layout")
 
 
 @document()
@@ -32,8 +31,13 @@ class Row(BlockContext, metaclass=ComponentMeta):
         visible: bool = True,
         elem_id: str | None = None,
         elem_classes: list[str] | str | None = None,
+        scale: int = 0,
         render: bool = True,
-        equal_height: bool = True,
+        height: int | str | None = None,
+        max_height: int | str | None = None,
+        min_height: int | str | None = None,
+        equal_height: bool = False,
+        show_progress: bool = False,
     ):
         """
         Parameters:
@@ -41,13 +45,29 @@ class Row(BlockContext, metaclass=ComponentMeta):
             visible: If False, row will be hidden.
             elem_id: An optional string that is assigned as the id of this component in the HTML DOM. Can be used for targeting CSS styles.
             elem_classes: An optional string or list of strings that are assigned as the class of this component in the HTML DOM. Can be used for targeting CSS styles.
+            scale: relative height compared to adjacent elements. 1 or greater indicates the Row will expand in height, and any child columns will also expand to fill the height.
             render: If False, this layout will not be rendered in the Blocks context. Should be used if the intention is to assign event listeners now but render the component later.
+            height: The height of the row, specified in pixels if a number is passed, or in CSS units if a string is passed. If content exceeds the height, the row will scroll vertically. If not set, the row will expand to fit the content.
+            max_height: The maximum height of the row, specified in pixels if a number is passed, or in CSS units if a string is passed. If content exceeds the height, the row will scroll vertically. If content is shorter than the height, the row will shrink to fit the content. Will not have any effect if `height` is set and is smaller than `max_height`.
+            min_height: The minimum height of the row, specified in pixels if a number is passed, or in CSS units if a string is passed. If content exceeds the height, the row will expand to fit the content. Will not have any effect if `height` is set and is larger than `min_height`.
             equal_height: If True, makes every child element have equal height
+            show_progress: If True, shows progress animation when being updated.
         """
         self.variant = variant
         self.equal_height = equal_height
         if variant == "compact":
             self.allow_expected_parents = False
+        self.show_progress = show_progress
+        self.height = height
+        self.max_height = max_height
+        self.min_height = min_height
+        if scale != round(scale):
+            warnings.warn(
+                f"'scale' value should be an integer. Using {scale} will cause issues."
+            )
+
+        self.scale = scale
+
         BlockContext.__init__(
             self,
             visible=visible,

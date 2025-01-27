@@ -2,19 +2,21 @@
 	import { Block } from "@gradio/atoms";
 	import type { SvelteComponent, ComponentType } from "svelte";
 	import type { Gradio, SelectData } from "@gradio/utils";
-	import { get_fetchable_url_or_file } from "@gradio/client";
+	import { BaseExample } from "@gradio/textbox";
 	export let components: string[];
 	export let component_props: Record<string, any>[];
 	export let component_map: Map<
 		string,
 		Promise<{
-			name: string;
-			component: { default: ComponentType<SvelteComponent> };
+			default: ComponentType<SvelteComponent>;
 		}>
 	>;
 	export let label = "Examples";
+	export let show_label = true;
 	export let headers: string[];
-	export let samples: any[][];
+	export let samples: any[][] | null = null;
+	let old_samples: any[][] | null = null;
+	export let sample_labels: string[] | null = null;
 	export let elem_id = "";
 	export let elem_classes: string[] = [];
 	export let visible = true;
@@ -28,11 +30,18 @@
 		click: number;
 		select: SelectData;
 	}>;
+	export let layout: "gallery" | "table" | null = null;
 
-	let samples_dir: string = get_fetchable_url_or_file(null, root, proxy_url);
+	// Although the `samples_dir` prop is not used in any of the core Gradio component, it is kept for backward compatibility
+	// with any custom components created with gradio<=4.20.0
+	let samples_dir: string = proxy_url
+		? `/proxy=${proxy_url}file=`
+		: `${root}/file=`;
 	let page = 0;
-	$: gallery = components.length < 2;
-	let paginate = samples.length > samples_per_page;
+
+	$: gallery =
+		(components.length < 2 || sample_labels !== null) && layout !== "table";
+	let paginate = samples ? samples.length > samples_per_page : false;
 
 	let selected_samples: any[][];
 	let page_count: number;
@@ -43,11 +52,22 @@
 	function handle_mouseenter(i: number): void {
 		current_hover = i;
 	}
+
 	function handle_mouseleave(): void {
 		current_hover = -1;
 	}
 
 	$: {
+		if (sample_labels) {
+			samples = sample_labels.map((e) => [e]);
+		} else if (!samples) {
+			samples = [];
+		}
+		if (samples !== old_samples) {
+			page = 0;
+			old_samples = samples;
+		}
+		paginate = samples.length > samples_per_page;
 		if (paginate) {
 			visible_pages = [];
 			selected_samples = samples.slice(
@@ -80,22 +100,23 @@
 
 	async function get_component_meta(selected_samples: any[][]): Promise<void> {
 		component_meta = await Promise.all(
-			selected_samples.map(
-				async (sample_row) =>
-					await Promise.all(
-						sample_row.map(async (sample_cell, j) => {
-							return {
-								value: sample_cell,
-								component: (await component_map.get(components[j]))?.component
-									?.default as ComponentType<SvelteComponent>
-							};
-						})
-					)
-			)
+			selected_samples &&
+				selected_samples.map(
+					async (sample_row) =>
+						await Promise.all(
+							sample_row.map(async (sample_cell, j) => {
+								return {
+									value: sample_cell,
+									component: (await component_map.get(components[j]))
+										?.default as ComponentType<SvelteComponent>
+								};
+							})
+						)
+				)
 		);
 	}
 
-	$: get_component_meta(selected_samples);
+	$: component_map, get_component_meta(selected_samples);
 </script>
 
 <Block
@@ -108,28 +129,30 @@
 	allow_overflow={false}
 	container={false}
 >
-	<div class="label">
-		<svg
-			xmlns="http://www.w3.org/2000/svg"
-			xmlns:xlink="http://www.w3.org/1999/xlink"
-			aria-hidden="true"
-			role="img"
-			width="1em"
-			height="1em"
-			preserveAspectRatio="xMidYMid meet"
-			viewBox="0 0 32 32"
-		>
-			<path
-				fill="currentColor"
-				d="M10 6h18v2H10zm0 18h18v2H10zm0-9h18v2H10zm-6 0h2v2H4zm0-9h2v2H4zm0 18h2v2H4z"
-			/>
-		</svg>
-		{label}
-	</div>
+	{#if show_label}
+		<div class="label">
+			<svg
+				xmlns="http://www.w3.org/2000/svg"
+				xmlns:xlink="http://www.w3.org/1999/xlink"
+				aria-hidden="true"
+				role="img"
+				width="1em"
+				height="1em"
+				preserveAspectRatio="xMidYMid meet"
+				viewBox="0 0 32 32"
+			>
+				<path
+					fill="currentColor"
+					d="M10 6h18v2H10zm0 18h18v2H10zm0-9h18v2H10zm-6 0h2v2H4zm0-9h2v2H4zm0 18h2v2H4z"
+				/>
+			</svg>
+			{label}
+		</div>
+	{/if}
 	{#if gallery}
 		<div class="gallery">
 			{#each selected_samples as sample_row, i}
-				{#if sample_row[0]}
+				{#if sample_row[0] != null}
 					<button
 						class="gallery-item"
 						on:click={() => {
@@ -140,7 +163,13 @@
 						on:mouseenter={() => handle_mouseenter(i)}
 						on:mouseleave={() => handle_mouseleave()}
 					>
-						{#if component_meta.length && component_map.get(components[0])}
+						{#if sample_labels}
+							<BaseExample
+								value={sample_row[0]}
+								selected={current_hover === i}
+								type="gallery"
+							/>
+						{:else if component_meta.length && component_map.get(components[0])}
 							<svelte:component
 								this={component_meta[0][0].component}
 								{...component_props[0]}
@@ -149,13 +178,14 @@
 								type="gallery"
 								selected={current_hover === i}
 								index={i}
+								{root}
 							/>
 						{/if}
 					</button>
 				{/if}
 			{/each}
 		</div>
-	{:else}
+	{:else if selected_samples.length > 0}
 		<div class="table-wrap">
 			<table tabindex="0" role="grid">
 				<thead>
@@ -195,6 +225,7 @@
 											type="table"
 											selected={current_hover === i}
 											index={i}
+											{root}
 										/>
 									</td>
 								{/if}
@@ -274,6 +305,7 @@
 		table-layout: auto;
 		overflow-x: auto;
 		line-height: var(--line-sm);
+		color: var(--table-text-color);
 	}
 	table {
 		width: var(--size-full);

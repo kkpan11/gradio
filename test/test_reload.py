@@ -1,13 +1,12 @@
 import dataclasses
 from pathlib import Path
-from typing import List
 
 import pytest
 
 import gradio
 import gradio as gr
 from gradio.cli.commands.reload import _setup_config
-from gradio.networking import Server
+from gradio.http_server import Server
 
 
 def build_demo():
@@ -21,7 +20,7 @@ def build_demo():
 class Config:
     module_name: str
     path: Path
-    watch_dirs: List[str]
+    watch_dirs: list[str]
     demo_name: str
 
 

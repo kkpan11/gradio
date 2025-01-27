@@ -5,4 +5,7 @@ source scripts/helpers.sh
 
 pnpm_required
 
-pnpm --filter @gradio/app build:lite
+rm -rf gradio/_frontend_code
+rm -rf gradio/templates/*
+
+pnpm build:lite

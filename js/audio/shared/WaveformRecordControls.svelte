@@ -6,6 +6,7 @@
 
 	export let record: RecordPlugin;
 	export let i18n: I18nFormatter;
+	export let recording = false;
 
 	let micDevices: MediaDeviceInfo[] = [];
 	let recordButton: HTMLButtonElement;
@@ -13,6 +14,7 @@
 	let resumeButton: HTMLButtonElement;
 	let stopButton: HTMLButtonElement;
 	let stopButtonPaused: HTMLButtonElement;
+	let recording_ongoing = false;
 
 	export let record_time: string;
 	export let show_recording_waveform: boolean | undefined;
@@ -53,6 +55,14 @@
 		stopButton.style.display = "flex";
 		stopButtonPaused.style.display = "none";
 	});
+
+	$: if (recording && !recording_ongoing) {
+		record.startRecording();
+		recording_ongoing = true;
+	} else {
+		record.stopRecording();
+		recording_ongoing = false;
+	}
 </script>
 
 <div class="controls">
@@ -131,9 +141,9 @@
 		height: var(--size-8);
 		width: var(--size-20);
 		background-color: var(--block-background-fill);
-		border-radius: var(--radius-3xl);
+		border-radius: var(--button-large-radius);
 		align-items: center;
-		border: 1px solid var(--neutral-400);
+		border: 1px solid var(--block-border-color);
 		margin: var(--size-1) var(--size-1) 0 0;
 	}
 
@@ -160,7 +170,7 @@
 		height: var(--size-8);
 		width: var(--size-20);
 		background-color: var(--block-background-fill);
-		border-radius: var(--radius-3xl);
+		border-radius: var(--button-large-radius);
 		align-items: center;
 		border: 1px solid var(--primary-600);
 		margin: var(--size-1) var(--size-1) 0 0;
@@ -179,10 +189,14 @@
 		height: var(--size-8);
 		width: var(--size-24);
 		background-color: var(--block-background-fill);
-		border-radius: var(--radius-3xl);
+		border-radius: var(--button-large-radius);
 		display: flex;
 		align-items: center;
-		border: 1px solid var(--neutral-400);
+		border: 1px solid var(--block-border-color);
+	}
+
+	.duration-button {
+		border-radius: var(--button-large-radius);
 	}
 
 	.stop-button:disabled {
@@ -213,8 +227,8 @@
 		display: none;
 		height: var(--size-8);
 		width: var(--size-20);
-		border: 1px solid var(--neutral-400);
-		border-radius: var(--radius-3xl);
+		border: 1px solid var(--block-border-color);
+		border-radius: var(--button-large-radius);
 		padding: var(--spacing-md);
 		margin: var(--size-1) var(--size-1) 0 0;
 	}
@@ -223,8 +237,8 @@
 		display: none;
 		height: var(--size-8);
 		width: var(--size-20);
-		border: 1px solid var(--neutral-400);
-		border-radius: var(--radius-3xl);
+		border: 1px solid var(--block-border-color);
+		border-radius: var(--button-large-radius);
 		padding: var(--spacing-xl);
 		line-height: 1px;
 		font-size: var(--text-md);
@@ -235,8 +249,7 @@
 		display: flex;
 		height: var(--size-8);
 		width: var(--size-20);
-		border: 1px solid var(--neutral-400);
-		border-radius: var(--radius-3xl);
+		border: 1px solid var(--block-border-color);
 		padding: var(--spacing-md);
 		align-items: center;
 		justify-content: center;
@@ -246,8 +259,21 @@
 	:global(::part(region)) {
 		border-radius: var(--radius-md);
 		height: 98% !important;
-		border: 1px solid var(--color-accent);
+		border: 1px solid var(--trim-region-color);
+		background-color: unset;
 		border-width: 1px 3px;
+	}
+
+	:global(::part(region))::after {
+		content: "";
+		position: absolute;
+		top: 0;
+		left: 0;
+		width: 100%;
+		height: 100%;
+		background: var(--trim-region-color);
+		opacity: 0.2;
+		border-radius: var(--radius-md);
 	}
 
 	:global(::part(region-handle)) {
